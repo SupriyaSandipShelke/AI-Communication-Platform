@@ -15,14 +15,11 @@ whatsappChatRouter.get('/chats', async (req, res) => {
     const dbService = req.app.locals.dbService;
     const userId = req.user?.id;
 
-    console.log('Loading chats for user:', userId);
-
     if (!userId) {
       return res.status(401).json({ success: false, error: 'User not authenticated' });
     }
 
     const chats = await dbService.getChats(userId);
-    console.log('Raw chats from database:', chats);
 
     res.json({
       success: true,

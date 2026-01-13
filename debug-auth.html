@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Authentication</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Authentication & Groups Debug</h1>
+        
+        <div id="authStatus"></div>
+        <div id="apiResults"></div>
+        
+        <button onclick="checkAuth()">Check Authentication</button>
+        <button onclick="testAPI()">Test API</button>
+        <button onclick="clearAuth()">Clear Auth & Reload</button>
+        <button onclick="goToApp()">Go to App</button>
+        
+        <h3>Instructions:</h3>
+        <ol>
+            <li>Click "Check Authentication" to verify your login status</li>
+            <li>Click "Test API" to check if groups are loading from the server</li>
+            <li>If you see groups in the API response but not in the app, try refreshing the app</li>
+            <li>If authentication fails, click "Clear Auth & Reload" and login again</li>
+        </ol>
+    </div>
+
+    <script>
+        function checkAuth() {
+            const authDiv = document.getElementById('authStatus');
+            
+            const token = localStorage.getItem('auth_token');
+            const userId = localStorage.getItem('user_id');
+            const username = localStorage.getItem('username');
+            
+            if (token && userId) {
+                authDiv.innerHTML = `
+                    <div class="status success">
+                        <h3>✅ Authentication Status: LOGGED IN</h3>
+                        <p><strong>User ID:</strong> ${userId}</p>
+                        <p><strong>Username:</strong> ${username || 'Not set'}</p>
+                        <p><strong>Token:</strong> ${token.substring(0, 20)}...</p>
+                    </div>
+                `;
+            } else {
+                authDiv.innerHTML = `
+                    <div class="status error">
+                        <h3>❌ Authentication Status: NOT LOGGED IN</h3>
+                        <p>Please login first at <a href="http://localhost:5173/login">http://localhost:5173/login</a></p>
+                    </div>
+                `;
+            }
+        }
+        
+        async function testAPI() {
+            const resultsDiv = document.getElementById('apiResults');
+            const token = localStorage.getItem('auth_token');
+            
+            if (!token) {
+                resultsDiv.innerHTML = `
+                    <div class="status error">
+                        <h3>❌ Cannot test API - Not authenticated</h3>
+                    </div>
+                `;
+                return;
+            }
+            
+            try {
+                resultsDiv.innerHTML = `
+                    <div class="status info">
+                        <h3>🔄 Testing API...</h3>
+                    </div>
+                `;
+                
+                const response = await fetch('http://localhost:3001/api/whatsapp/chats', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    let chatsList = '';
+                    if (data.chats && data.chats.length > 0) {
+                        chatsList = data.chats.map(chat => 
+                            `<li><strong>${chat.name || chat.group_name || 'Unknown'}</strong> - ${chat.is_group ? 'Group' : 'Individual'} (${chat.member_count || 0} members)</li>`
+                        ).join('');
+                    } else {
+                        chatsList = '<li>No chats found</li>';
+                    }
+                    
+                    resultsDiv.innerHTML = `
+                        <div class="status success">
+                            <h3>✅ API Test: SUCCESS</h3>
+                            <p><strong>Found ${data.chats.length} chats:</strong></p>
+                            <ul>${chatsList}</ul>
+                            <details>
+                                <summary>Raw API Response</summary>
+                                <pre>${JSON.stringify(data, null, 2)}</pre>
+                            </details>
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="status error">
+                            <h3>❌ API Test: FAILED</h3>
+                            <p><strong>Error:</strong> ${data.error || 'Unknown error'}</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="status error">
+                        <h3>❌ API Test: NETWORK ERROR</h3>
+                        <p><strong>Error:</strong> ${error.message}</p>
+                        <p>Make sure the server is running on port 3001</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function clearAuth() {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user_id');
+            localStorage.removeItem('username');
+            alert('Authentication cleared! Redirecting to login...');
+            window.location.href = 'http://localhost:5173/login';
+        }
+        
+        function goToApp() {
+            window.location.href = 'http://localhost:5173/messages';
+        }
+        
+        // Auto-check auth on page load
+        window.onload = function() {
+            checkAuth();
+        };
+    </script>
+</body>
+</html>

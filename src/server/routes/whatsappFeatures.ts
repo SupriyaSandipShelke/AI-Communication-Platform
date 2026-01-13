@@ -399,8 +399,6 @@ whatsappFeaturesRouter.post('/groups/create', async (req, res) => {
     const dbService = req.app.locals.dbService;
     const wss = req.app.locals.wss;
 
-    console.log('Group creation request:', { name, participants, description, userId });
-
     if (!userId) {
       return res.status(401).json({ success: false, error: 'User not authenticated' });
     }
@@ -424,10 +422,7 @@ whatsappFeaturesRouter.post('/groups/create', async (req, res) => {
       createdAt: new Date()
     };
 
-    console.log('Creating group with data:', groupData);
-
     await dbService.createWhatsAppGroup(groupData);
-    console.log('Group created successfully in database');
 
     // Notify all participants via WebSocket about the new group
     if (wss) {
@@ -439,8 +434,6 @@ whatsappFeaturesRouter.post('/groups/create', async (req, res) => {
         participants: groupData.participants,
         timestamp: new Date()
       };
-
-      console.log('Broadcasting group creation notification:', groupNotification);
 
       // Broadcast to all participants
       wss.clients.forEach((client: any) => {

@@ -1332,8 +1332,6 @@ export class DatabaseService {
   }) {
     if (!this.db) throw new Error('Database not initialized');
     
-    console.log('DatabaseService.createWhatsAppGroup called with:', groupData);
-    
     // Create the group chat
     await new Promise((resolve, reject) => {
       this.db!.run(
@@ -1351,19 +1349,13 @@ export class DatabaseService {
           groupData.createdAt.toISOString()
         ],
         (err) => {
-          if (err) {
-            console.error('Error creating group chat:', err);
-            reject(err);
-          } else {
-            console.log('Group chat created successfully');
-            resolve(undefined);
-          }
+          if (err) reject(err);
+          else resolve(undefined);
         }
       );
     });
     
     // Add all participants
-    console.log('Adding participants:', groupData.participants);
     for (const participantId of groupData.participants) {
       const participantData = {
         id: `participant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -1373,27 +1365,18 @@ export class DatabaseService {
         joined_at: groupData.createdAt.toISOString()
       };
       
-      console.log('Adding participant:', participantData);
-      
       await new Promise((resolve, reject) => {
         this.db!.run(
           `INSERT INTO chat_participants (id, chat_id, user_id, role, joined_at)
            VALUES (?, ?, ?, ?, ?)`,
           [participantData.id, participantData.chat_id, participantData.user_id, participantData.role, participantData.joined_at],
           (err) => {
-            if (err) {
-              console.error('Error adding participant:', err);
-              reject(err);
-            } else {
-              console.log('Participant added successfully:', participantData.user_id);
-              resolve(undefined);
-            }
+            if (err) reject(err);
+            else resolve(undefined);
           }
         );
       });
     }
-    
-    console.log('Group creation completed successfully');
   }
   
   async getUserWhatsAppGroups(userId: string) {
