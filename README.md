@@ -1,6 +1,6 @@
-# WhatsApp-Like Chat Application
+# AI Communication Platform
 
-A modern, real-time group chat application built with React, Node.js, and WebSocket technology. Features WhatsApp-like UI/UX with group messaging, typing indicators, message status, and comprehensive user management.
+An AI-powered WhatsApp-like chat application that enables real-time messaging, group management, and intelligent communication features. Built with modern web technologies including React, Node.js, and WebSocket for seamless real-time communication.
 
 ![Chat Application](https://img.shields.io/badge/Status-Active-green)
 ![Node.js](https://img.shields.io/badge/Node.js-18+-blue)
@@ -52,8 +52,8 @@ A modern, real-time group chat application built with React, Node.js, and WebSoc
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/SupriyaSandipShelke/whatsapp-like-chat-app.git
-   cd whatsapp-like-chat-app
+   git clone https://github.com/SupriyaSandipShelke/AI-Communication-Platform.git
+   cd AI-Communication-Platform
    ```
 
 2. **Install dependencies**
@@ -65,7 +65,12 @@ A modern, real-time group chat application built with React, Node.js, and WebSoc
    cd client && npm install && cd ..
    ```
 
-3. **Start the application**
+3. **Set up test users**
+   ```bash
+   node setup.js
+   ```
+
+4. **Start the application**
    ```bash
    # Start both frontend and backend
    npm run dev
@@ -75,13 +80,16 @@ A modern, real-time group chat application built with React, Node.js, and WebSoc
    # Frontend: npm run dev:client
    ```
 
-4. **Access the application**
+5. **Access the application**
    - Frontend: http://localhost:5173
    - Backend API: http://localhost:3001
 
 ### First Time Setup
 
-1. **Register a new account** on the login page
+1. **Login** with test credentials:
+   - `alice@example.com` / `password123`
+   - `bob@example.com` / `password123`
+   - `charlie@example.com` / `password123`
 2. **Create a group** from the Messages section
 3. **Add other users** to test group functionality
 4. **Start chatting** with real-time messaging!
@@ -239,7 +247,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 Support
 
 If you have any questions or need help, please:
-1. Check the [Issues](https://github.com/SupriyaSandipShelke/whatsapp-like-chat-app/issues) page
+1. Check the [Issues](https://github.com/SupriyaSandipShelke/AI-Communication-Platform/issues) page
 2. Create a new issue if your problem isn't already reported
 3. Provide detailed information about your environment and the issue
 
