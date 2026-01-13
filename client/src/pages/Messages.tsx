@@ -537,16 +537,25 @@ export default function Messages() {
     setSelectedRoom(room);
     setTypingUsers(new Set()); // Clear typing indicators when switching rooms
     
+    let actualRoomId = room.roomId;
+    
+    // Handle individual user chats
+    if (room.roomId.startsWith('user_')) {
+      // For individual chats, we'll use the user_ format for WebSocket
+      // but the API will handle creating the actual chat
+      actualRoomId = room.roomId;
+    }
+    
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'join_room',
-        roomId: room.roomId
+        roomId: actualRoomId
       }));
     }
     
     try {
-      console.log('Loading messages for room:', room.roomId);
-      const data = await apiCall(`/api/whatsapp/chat/${room.roomId}/messages?limit=50`);
+      console.log('Loading messages for room:', actualRoomId);
+      const data = await apiCall(`/api/whatsapp/chat/${actualRoomId}/messages?limit=50`);
       console.log('Messages API response:', data);
       
       if (data && data.success) {
@@ -565,6 +574,11 @@ export default function Messages() {
         });
         console.log('Transformed messages:', transformedMessages);
         setMessages(transformedMessages);
+        
+        // Update the room ID if it was created (for individual chats)
+        if (data.chatId && data.chatId !== room.roomId) {
+          setSelectedRoom(prev => prev ? { ...prev, roomId: data.chatId } : null);
+        }
       } else {
         console.error('Failed to load messages:', data);
         setMessages([]);
@@ -578,10 +592,13 @@ export default function Messages() {
     if (room.isGroup) {
       console.log('Loading group members for:', room.roomId);
       await loadGroupMembers(room.roomId);
+    } else {
+      // Clear group members for individual chats
+      setGroupMembers([]);
     }
 
     if (room.unreadCount > 0) {
-      await apiCall(`/api/whatsapp/chat/${room.roomId}/read`, { method: 'POST' });
+      await apiCall(`/api/whatsapp/chat/${actualRoomId}/read`, { method: 'POST' });
       
       setRooms(prev => prev.map(r => 
         r.roomId === room.roomId 
@@ -595,9 +612,14 @@ export default function Messages() {
     if (!newMessage.trim() || !selectedRoom || !ws) return;
 
     const userId = localStorage.getItem('user_id') || 'anonymous';
+    let actualRoomId = selectedRoom.roomId;
+    
+    // For individual chats, determine if we need to create a chat
+    const isIndividualChat = !selectedRoom.isGroup;
+    
     const messageData = {
       type: 'send_message',
-      roomId: selectedRoom.roomId,
+      roomId: actualRoomId,
       content: newMessage,
       sender: userId,
       senderName: localStorage.getItem('username') || 'You',
@@ -627,7 +649,7 @@ export default function Messages() {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({
         type: 'typing_stop',
-        roomId: selectedRoom.roomId,
+        roomId: actualRoomId,
         userId: userId,
         isGroup: selectedRoom.isGroup
       }));
@@ -638,8 +660,8 @@ export default function Messages() {
 
     // Also send through API for persistence
     try {
-      console.log('Sending message via API to:', `/api/whatsapp/chat/${selectedRoom.roomId}/send`);
-      const response = await apiCall(`/api/whatsapp/chat/${selectedRoom.roomId}/send`, {
+      console.log('Sending message via API to:', `/api/whatsapp/chat/${actualRoomId}/send`);
+      const response = await apiCall(`/api/whatsapp/chat/${actualRoomId}/send`, {
         method: 'POST',
         body: JSON.stringify({
           content: messageContent,
@@ -657,6 +679,25 @@ export default function Messages() {
             ? { ...msg, id: response.messageId, status: 'sent' }
             : msg
         ));
+        
+        // Update room ID if it was created (for individual chats)
+        if (response.chatId && response.chatId !== selectedRoom.roomId) {
+          setSelectedRoom(prev => prev ? { ...prev, roomId: response.chatId } : null);
+          
+          // Update the room in the rooms list
+          setRooms(prev => prev.map(room => 
+            room.roomId === selectedRoom.roomId 
+              ? { ...room, roomId: response.chatId, lastMessage: messageContent, lastMessageTime: new Date().toISOString() }
+              : room
+          ));
+        } else {
+          // Update last message for existing rooms
+          setRooms(prev => prev.map(room => 
+            room.roomId === selectedRoom.roomId 
+              ? { ...room, lastMessage: messageContent, lastMessageTime: new Date().toISOString() }
+              : room
+          ));
+        }
       } else {
         console.error('Message API failed:', response);
         // Mark message as failed

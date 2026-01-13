@@ -50,26 +50,38 @@ whatsappChatRouter.get('/chat/:chatId/messages', async (req, res) => {
       return res.status(401).json({ success: false, error: 'User not authenticated' });
     }
 
-    // Check if user has access to this chat
-    const chat = await dbService.getChat(chatId, userId);
-    if (!chat) {
-      return res.status(404).json({ success: false, error: 'Chat not found' });
+    let actualChatId = chatId;
+
+    // Handle individual user chats (chatId format: user_<userId>)
+    if (chatId.startsWith('user_')) {
+      const contactId = chatId.replace('user_', '');
+      
+      // Get or create individual chat
+      actualChatId = await dbService.getOrCreateIndividualChat(userId, contactId);
+    } else {
+      // Check if user has access to this chat
+      const chat = await dbService.getChat(chatId, userId);
+      if (!chat) {
+        return res.status(404).json({ success: false, error: 'Chat not found' });
+      }
     }
 
     const messages = await dbService.getMessages({
-      roomId: chatId,
+      roomId: actualChatId,
       limit: parseInt(limit as string)
     });
 
     // Mark messages as read
-    await dbService.markChatMessagesAsRead(chatId, userId);
+    await dbService.markChatMessagesAsRead(actualChatId, userId);
 
     res.json({
       success: true,
       messages,
-      count: messages.length
+      count: messages.length,
+      chatId: actualChatId
     });
   } catch (error: any) {
+    console.error('Get messages error:', error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -81,12 +93,12 @@ whatsappChatRouter.get('/chat/:chatId/messages', async (req, res) => {
  * Send a message
  * POST /api/whatsapp/chat/:chatId/send
  * 
- * Body: { content: string }
+ * Body: { content: string, isGroup?: boolean, type?: string }
  */
 whatsappChatRouter.post('/chat/:chatId/send', async (req, res) => {
   try {
     const { chatId } = req.params;
-    const { content } = req.body;
+    const { content, isGroup = false, type = 'text' } = req.body;
     const dbService = req.app.locals.dbService;
     const matrixService = req.app.locals.matrixService;
     const userId = req.user?.id;
@@ -99,29 +111,40 @@ whatsappChatRouter.post('/chat/:chatId/send', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Message content is required' });
     }
 
-    // Check if user has access to this chat
-    const chat = await dbService.getChat(chatId, userId);
-    if (!chat) {
-      return res.status(404).json({ success: false, error: 'Chat not found' });
+    let actualChatId = chatId;
+
+    // Handle individual user chats (chatId format: user_<userId>)
+    if (chatId.startsWith('user_')) {
+      const contactId = chatId.replace('user_', '');
+      
+      // Create or get existing individual chat
+      actualChatId = await dbService.getOrCreateIndividualChat(userId, contactId);
+    } else {
+      // Check if user has access to this chat (for existing chats)
+      const chat = await dbService.getChat(chatId, userId);
+      if (!chat) {
+        return res.status(404).json({ success: false, error: 'Chat not found' });
+      }
     }
 
     // Save message to database
     const message = {
       platform: 'whatsapp',
-      roomId: chatId,
+      roomId: actualChatId,
       sender: userId,
       content,
-      timestamp: new Date()
+      timestamp: new Date(),
+      type
     };
 
     const messageId = await dbService.saveMessage(message);
 
     // Update chat's last message
-    await dbService.updateChatLastMessage(chatId, content);
+    await dbService.updateChatLastMessage(actualChatId, content);
 
     // Send message through Matrix service (or other platform)
     try {
-      await matrixService.sendMessage(chatId, content);
+      await matrixService.sendMessage(actualChatId, content);
     } catch (matrixError: any) {
       console.warn('Failed to send message via Matrix:', matrixError.message);
     }
@@ -132,9 +155,11 @@ whatsappChatRouter.post('/chat/:chatId/send', async (req, res) => {
     res.json({
       success: true,
       message: 'Message sent successfully',
-      messageId
+      messageId,
+      chatId: actualChatId
     });
   } catch (error: any) {
+    console.error('Send message error:', error);
     res.status(500).json({
       success: false,
       error: error.message,

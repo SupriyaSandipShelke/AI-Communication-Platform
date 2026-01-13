@@ -757,7 +757,7 @@ export class DatabaseService {
   // WhatsApp-like Chat Methods
   
   async createChat(chatData: {
-    id: string;
+    id?: string;
     userId: string;
     contactId: string;
     lastMessage?: string;
@@ -786,6 +786,47 @@ export class DatabaseService {
     
     return id;
   }
+
+  async getOrCreateIndividualChat(userId: string, contactId: string) {
+    if (!this.db) throw new Error('Database not initialized');
+    
+    // Check if chat already exists (in either direction)
+    const existingChat: any = await new Promise((resolve, reject) => {
+      this.db!.get(
+        `SELECT * FROM chats 
+         WHERE is_group = 0 AND (
+           (user_id = ? AND contact_id = ?) OR 
+           (user_id = ? AND contact_id = ?)
+         )`,
+        [userId, contactId, contactId, userId],
+        (err, result) => {
+          if (err) reject(err);
+          else resolve(result);
+        }
+      );
+    });
+    
+    if (existingChat) {
+      return existingChat.id;
+    }
+    
+    // Create new individual chat
+    const chatId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    await new Promise((resolve, reject) => {
+      this.db!.run(
+        `INSERT INTO chats (id, user_id, contact_id, is_group, created_at, updated_at)
+         VALUES (?, ?, ?, 0, ?, ?)`,
+        [chatId, userId, contactId, new Date().toISOString(), new Date().toISOString()],
+        (err) => {
+          if (err) reject(err);
+          else resolve(undefined);
+        }
+      );
+    });
+    
+    return chatId;
+  }
   
   async getChat(chatId: string, userId: string) {
     if (!this.db) throw new Error('Database not initialized');
@@ -808,7 +849,8 @@ export class DatabaseService {
   async getChats(userId: string) {
     if (!this.db) throw new Error('Database not initialized');
     
-    const rows: any[] = await new Promise((resolve, reject) => {
+    // Get existing chats (groups and individual chats)
+    const existingChats: any[] = await new Promise((resolve, reject) => {
       this.db!.all(
         `SELECT c.*, 
          CASE 
@@ -844,8 +886,69 @@ export class DatabaseService {
         }
       );
     });
+
+    // Get all users to create potential individual chats
+    const allUsers: any[] = await new Promise((resolve, reject) => {
+      this.db!.all(
+        `SELECT id, username, created_at FROM users WHERE id != ? ORDER BY username`,
+        [userId],
+        (err, result) => {
+          if (err) reject(err);
+          else resolve(result);
+        }
+      );
+    });
+
+    // Create individual chat entries for users that don't have existing chats
+    const existingUserChats = existingChats.filter(chat => !chat.is_group);
+    const existingUserIds = new Set(existingUserChats.map(chat => 
+      chat.user_id === userId ? chat.contact_id : chat.user_id
+    ));
+
+    const userChats = allUsers
+      .filter(user => !existingUserIds.has(user.id))
+      .map(user => ({
+        id: `user_${user.id}`,
+        user_id: userId,
+        contact_id: user.id,
+        contact_name: user.username,
+        name: user.username,
+        last_message: '',
+        last_message_time: null,
+        unread_count: 0,
+        is_pinned: 0,
+        is_archived: 0,
+        is_group: 0,
+        group_name: null,
+        created_at: user.created_at,
+        updated_at: user.created_at,
+        contact_username: user.username,
+        member_count: 0,
+        member_names: null
+      }));
+
+    // Combine existing chats with user chats
+    const allChats = [...existingChats, ...userChats];
     
-    return rows;
+    // Sort by last message time (groups and active chats first, then users)
+    allChats.sort((a, b) => {
+      // Groups and chats with messages first
+      if (a.last_message_time && !b.last_message_time) return -1;
+      if (!a.last_message_time && b.last_message_time) return 1;
+      
+      // If both have messages, sort by time
+      if (a.last_message_time && b.last_message_time) {
+        return new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime();
+      }
+      
+      // If neither has messages, groups first, then alphabetical
+      if (a.is_group && !b.is_group) return -1;
+      if (!a.is_group && b.is_group) return 1;
+      
+      return (a.name || '').localeCompare(b.name || '');
+    });
+    
+    return allChats;
   }
   
   async updateChatLastMessage(chatId: string, lastMessage: string, lastMessageTime?: Date) {

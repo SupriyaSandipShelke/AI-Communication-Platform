@@ -152,9 +152,23 @@ wss.on('connection', (ws) => {
           break;
 
         case 'send_message':
+          let actualRoomId = message.roomId;
+          
+          // Handle individual user chats
+          if (message.roomId.startsWith('user_')) {
+            const contactId = message.roomId.replace('user_', '');
+            try {
+              actualRoomId = await dbService.getOrCreateIndividualChat(message.sender || userId, contactId);
+            } catch (error) {
+              console.error('Failed to create individual chat:', error);
+              ws.send(JSON.stringify({ type: 'error', message: 'Failed to create chat' }));
+              break;
+            }
+          }
+          
           const messageId = await dbService.saveMessage({
             platform: 'websocket',
-            roomId: message.roomId,
+            roomId: actualRoomId,
             sender: message.sender || userId,
             content: message.content,
             timestamp: new Date(),
@@ -173,7 +187,7 @@ wss.on('connection', (ws) => {
             platform: 'websocket',
             message: {
               id: messageId,
-              roomId: message.roomId,
+              roomId: actualRoomId,
               sender: message.sender || userId,
               senderName: senderInfo?.username || message.senderName || 'Unknown',
               content: message.content,
@@ -190,7 +204,7 @@ wss.on('connection', (ws) => {
               const groupMembers = await new Promise((resolve, reject) => {
                 dbService.db.all(
                   'SELECT user_id FROM chat_participants WHERE chat_id = ?',
-                  [message.roomId],
+                  [actualRoomId],
                   (err, result) => {
                     if (err) reject(err);
                     else resolve(result);
@@ -216,11 +230,32 @@ wss.on('connection', (ws) => {
             } catch (error) {
               console.error('Failed to broadcast to group members:', error);
               // Fallback to room-based broadcast
-              broadcastToRoom(message.roomId, messageData);
+              broadcastToRoom(actualRoomId, messageData);
             }
           } else {
-            // For individual chats, use room-based broadcast
-            broadcastToRoom(message.roomId, messageData);
+            // For individual chats, broadcast to both participants
+            try {
+              const chat = await dbService.getChat(actualRoomId, message.sender || userId);
+              if (chat) {
+                const participants = [chat.user_id, chat.contact_id];
+                participants.forEach(participantId => {
+                  const participantWs = connectedUsers.get(participantId);
+                  if (participantWs && participantWs.readyState === 1) {
+                    const personalizedMessage = {
+                      ...messageData,
+                      message: {
+                        ...messageData.message,
+                        isOwn: participantId === (message.sender || userId)
+                      }
+                    };
+                    participantWs.send(JSON.stringify(personalizedMessage));
+                  }
+                });
+              }
+            } catch (error) {
+              console.error('Failed to broadcast to individual chat participants:', error);
+              broadcastToRoom(actualRoomId, messageData);
+            }
           }
           
           // Mark as delivered for online users after a short delay
@@ -239,7 +274,7 @@ wss.on('connection', (ws) => {
                 const groupMembers = await new Promise((resolve, reject) => {
                   dbService.db.all(
                     'SELECT user_id FROM chat_participants WHERE chat_id = ?',
-                    [message.roomId],
+                    [actualRoomId],
                     (err, result) => {
                       if (err) reject(err);
                       else resolve(result);
@@ -255,10 +290,10 @@ wss.on('connection', (ws) => {
                 });
               } catch (error) {
                 console.error('Failed to broadcast delivery status:', error);
-                broadcastToRoom(message.roomId, deliveryUpdate);
+                broadcastToRoom(actualRoomId, deliveryUpdate);
               }
             } else {
-              broadcastToRoom(message.roomId, deliveryUpdate);
+              broadcastToRoom(actualRoomId, deliveryUpdate);
             }
           }, 100);
           break;
