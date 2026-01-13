@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: commhub-prod
+data:
+  NODE_ENV: "production"
+  PORT: "3001"
+  DATABASE_PATH: "/app/data/messages.db"
+  MATRIX_HOMESERVER: "https://matrix.org"
+  ENABLE_AI_SUMMARY: "true"
+  ENABLE_AUTO_RESPONSE: "true"
+  ENABLE_VOICE_ASSISTANT: "true"
+  DAILY_SUMMARY_TIME: "18:00"
+  ALLOWED_ORIGINS: "https://commhub.yourdomain.com"

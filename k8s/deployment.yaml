@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: matrix-synapse
+  labels:
+    app: matrix-synapse
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: matrix-synapse
+  template:
+    metadata:
+      labels:
+        app: matrix-synapse
+    spec:
+      containers:
+      - name: synapse
+        image: matrixdotorg/synapse:latest
+        ports:
+        - containerPort: 8008
+        - containerPort: 8448
+        env:
+        - name: SYNAPSE_SERVER_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: matrix-config
+              key: server_name
+        - name: SYNAPSE_REPORT_STATS
+          value: "yes"
+        volumeMounts:
+        - name: synapse-data
+          mountPath: /data
+      volumes:
+      - name: synapse-data
+        persistentVolumeClaim:
+          claimName: synapse-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: matrix-synapse-service
+spec:
+  selector:
+    app: matrix-synapse
+  ports:
+    - protocol: TCP
+      port: 8008
+      targetPort: 8008
+    - protocol: TCP
+      port: 8448
+      targetPort: 8448
+  type: LoadBalancer
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: matrix-config
+data:
+  server_name: "matrix.example.com"
+  report_stats: "yes"
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: synapse-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi

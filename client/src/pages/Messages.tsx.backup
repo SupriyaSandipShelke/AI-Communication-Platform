@@ -1,0 +1,1604 @@
+import { useState, useEffect, useRef } from 'react';
+import Layout from '../components/Layout';
+import ChatMessage from '../components/ChatMessage';
+import SecurityStatus from '../components/SecurityStatus';
+import { 
+  Send, 
+  Mic, 
+  Search, 
+  Filter, 
+  Sparkles, 
+  Bot, 
+  Bell, 
+  Clock, 
+  MessageSquare, 
+  Users, 
+  BarChart, 
+  Shield, 
+  Eye, 
+  EyeOff,
+  Phone,
+  Video,
+  Paperclip,
+  Smile,
+  MoreVertical,
+  ArrowLeft,
+  Star,
+  Archive,
+  VolumeX,
+  UserPlus,
+  Settings,
+  Camera,
+  Image,
+  FileText,
+  MapPin,
+  Contact
+} from 'lucide-react';
+
+interface Message {
+  id: string;
+  content: string;
+  sender: string;
+  timestamp: Date;
+  status?: 'sent' | 'delivered' | 'read';
+  messageType?: 'text' | 'image' | 'voice' | 'document' | 'call';
+  mediaUrl?: string;
+  duration?: number;
+  reactions?: { emoji: string; users: string[] }[];
+  replyTo?: { id: string; content: string; sender: string };
+  isStarred?: boolean;
+  isEdited?: boolean;
+}
+
+interface Chat {
+  roomId: string;
+  name: string;
+  members: number;
+  lastMessage: string;
+  lastMessageTime: string;
+  unreadCount: number;
+  isGroup: boolean;
+  isOnline: boolean;
+  avatar?: string;
+  isTyping?: boolean;
+  isPinned?: boolean;
+  isMuted?: boolean;
+  isArchived?: boolean;
+}
+
+export default function Messages() {
+  const [rooms, setRooms] = useState<Chat[]>([]);
+  const [selectedRoom, setSelectedRoom] = useState<Chat | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [ws, setWs] = useState<WebSocket | null>(null);
+  const [filterPriority, setFilterPriority] = useState('all');
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showChatInfo, setShowChatInfo] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
+  useEffect(() => {
+    // Check if user is authenticated
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      window.location.href = '/login';
+      return;
+    }
+    
+    loadRooms();
+    connectWebSocket();
+
+    return () => {
+      if (ws) ws.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const connectWebSocket = () => {
+    const websocket = new WebSocket('ws://localhost:3001');
+    
+    websocket.onopen = () => {
+      console.log('WebSocket connected');
+      
+      // Authenticate with server
+      const userId = localStorage.getItem('user_id');
+      if (userId) {
+        websocket.send(JSON.stringify({
+          type: 'authenticate',
+          userId,
+          rooms: rooms.map(room => room.roomId)
+        }));
+      }
+    };
+
+    websocket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      
+      switch (data.type) {
+        case 'new_message':
+          setMessages(prev => [...prev, {
+            id: data.message.id,
+            content: data.message.content,
+            sender: data.message.sender,
+            timestamp: new Date(data.message.timestamp),
+            status: data.message.status,
+            messageType: data.message.messageType || 'text',
+            mediaUrl: data.message.mediaUrl,
+            duration: data.message.duration,
+            reactions: data.message.reactions || [],
+            replyTo: data.message.replyTo,
+            isStarred: data.message.isStarred || false,
+            isEdited: data.message.isEdited || false
+          }]);
+          
+          // Update chat list with new message
+          updateChatLastMessage(data.message.roomId, data.message.content);
+          break;
+
+        case 'typing_indicator':
+          if (data.isTyping) {
+            setTypingUsers(prev => [...prev.filter(u => u !== data.userId), data.userId]);
+          } else {
+            setTypingUsers(prev => prev.filter(u => u !== data.userId));
+          }
+          break;
+
+        case 'message_status':
+          setMessages(prev => prev.map(msg => 
+            msg.id === data.messageId 
+              ? { ...msg, status: data.status }
+              : msg
+          ));
+          break;
+
+        case 'user_online':
+          setOnlineUsers(prev => new Set([...prev, data.userId]));
+          break;
+
+        case 'user_offline':
+          setOnlineUsers(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(data.userId);
+            return newSet;
+          });
+          break;
+
+        case 'incoming_call':
+          handleIncomingCall(data);
+          break;
+
+        case 'call_accepted':
+          handleCallAccepted(data);
+          break;
+
+        case 'call_rejected':
+          handleCallRejected(data);
+          break;
+
+        case 'call_ended':
+          handleCallEnded(data);
+          break;
+
+        default:
+          console.log('Unknown message type:', data.type);
+      }
+    };
+
+    websocket.onclose = () => {
+      console.log('WebSocket disconnected');
+      // Attempt to reconnect after 3 seconds
+      setTimeout(connectWebSocket, 3000);
+    };
+
+    setWs(websocket);
+  };
+
+  const apiCall = async (url: string, options: RequestInit = {}) => {
+    const token = localStorage.getItem('auth_token');
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...options.headers,
+      },
+    });
+    
+    if (response.status === 401) {
+      window.location.href = '/login';
+      return null;
+    }
+    
+    return response.json();
+  };
+  
+  const loadRooms = async () => {
+    try {
+      const data = await apiCall('/api/whatsapp/chats');
+      if (data && data.success) {
+        const transformedRooms = data.chats.map((chat: any) => ({
+          roomId: chat.id,
+          name: chat.name || chat.contact_name || 'Unknown',
+          members: chat.participants?.length || 1,
+          lastMessage: chat.last_message || 'No messages yet',
+          lastMessageTime: chat.last_message_time,
+          unreadCount: chat.unread_count || 0,
+          isGroup: chat.is_group || false,
+          isOnline: onlineUsers.has(chat.contact_id),
+          avatar: chat.avatar,
+          isPinned: chat.is_pinned || false,
+          isMuted: chat.is_muted || false,
+          isArchived: chat.is_archived || false
+        }));
+        
+        setRooms(transformedRooms);
+        
+        if (transformedRooms.length > 0 && !selectedRoom) {
+          selectRoom(transformedRooms[0]);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load rooms:', error);
+    }
+  };
+
+  const selectRoom = async (room: Chat) => {
+    setSelectedRoom(room);
+    
+    // Join room via WebSocket
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'join_room',
+        roomId: room.roomId
+      }));
+    }
+    
+    // Load messages for this room
+    try {
+      const data = await apiCall(`/api/whatsapp/chat/${room.roomId}/messages?limit=50`);
+      if (data && data.success) {
+        const transformedMessages = data.messages.map((msg: any) => ({
+          id: msg.id,
+          content: msg.content,
+          sender: msg.sender,
+          timestamp: new Date(msg.timestamp),
+          status: msg.status || 'sent',
+          messageType: msg.message_type || 'text',
+          mediaUrl: msg.media_url,
+          duration: msg.duration,
+          reactions: msg.reactions || [],
+          replyTo: msg.reply_to,
+          isStarred: msg.is_starred || false,
+          isEdited: msg.is_edited || false
+        }));
+        setMessages(transformedMessages);
+      }
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+    }
+
+    // Mark messages as read
+    if (room.unreadCount > 0) {
+      await apiCall(`/api/whatsapp/chat/${room.roomId}/read`, { method: 'POST' });
+      
+      // Update local state
+      setRooms(prev => prev.map(r => 
+        r.roomId === room.roomId 
+          ? { ...r, unreadCount: 0 }
+          : r
+      ));
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !selectedRoom || !ws) return;
+
+    const messageData = {
+      type: 'send_message',
+      roomId: selectedRoom.roomId,
+      content: newMessage,
+      sender: localStorage.getItem('user_id'),
+      replyTo: replyingTo ? {
+        id: replyingTo.id,
+        content: replyingTo.content,
+        sender: replyingTo.sender
+      } : undefined
+    };
+
+    ws.send(JSON.stringify(messageData));
+    
+    setNewMessage('');
+    setReplyingTo(null);
+    stopTyping();
+  };
+
+  const handleTyping = () => {
+    if (!isTyping && selectedRoom && ws) {
+      setIsTyping(true);
+      ws.send(JSON.stringify({
+        type: 'typing_start',
+        roomId: selectedRoom.roomId
+      }));
+    }
+
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // Set new timeout to stop typing
+    typingTimeoutRef.current = setTimeout(stopTyping, 2000);
+  };
+
+  const stopTyping = () => {
+    if (isTyping && selectedRoom && ws) {
+      setIsTyping(false);
+      ws.send(JSON.stringify({
+        type: 'typing_stop',
+        roomId: selectedRoom.roomId
+      }));
+    }
+    
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+  };
+
+  const handleVoiceCall = () => {
+    if (!selectedRoom || !ws) return;
+    
+    ws.send(JSON.stringify({
+      type: 'initiate_call',
+      calleeId: selectedRoom.roomId,
+      callType: 'audio'
+    }));
+  };
+
+  const handleVideoCall = () => {
+    if (!selectedRoom || !ws) return;
+    
+    ws.send(JSON.stringify({
+      type: 'initiate_call',
+      calleeId: selectedRoom.roomId,
+      callType: 'video'
+    }));
+  };
+
+  const handleIncomingCall = (data: any) => {
+    const accept = window.confirm(`Incoming ${data.callType} call from ${data.callerId}. Accept?`);
+    
+    if (accept && ws) {
+      ws.send(JSON.stringify({
+        type: 'accept_call',
+        callId: data.callId
+      }));
+    } else if (ws) {
+      ws.send(JSON.stringify({
+        type: 'reject_call',
+        callId: data.callId
+      }));
+    }
+  };
+
+  const handleCallAccepted = (data: any) => {
+    alert(`Call accepted! Call ID: ${data.callId}`);
+    // Here you would initialize WebRTC connection
+  };
+
+  const handleCallRejected = (data: any) => {
+    alert('Call was rejected');
+  };
+
+  const handleCallEnded = (data: any) => {
+    alert(`Call ended. Duration: ${data.duration || 0} seconds`);
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Handle different file types
+    const fileType = file.type.startsWith('image/') ? 'image' : 
+                    file.type.startsWith('audio/') ? 'voice' : 'document';
+    
+    // For now, just send a message indicating file upload
+    // In production, you'd upload to S3 and send the URL
+    if (selectedRoom && ws) {
+      ws.send(JSON.stringify({
+        type: 'send_message',
+        roomId: selectedRoom.roomId,
+        content: `📎 ${file.name}`,
+        sender: localStorage.getItem('user_id'),
+        messageType: fileType
+      }));
+    }
+    
+    setShowAttachmentMenu(false);
+  };
+
+  const startVoiceRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      
+      const chunks: BlobPart[] = [];
+      
+      mediaRecorder.ondataavailable = (event) => {
+        chunks.push(event.data);
+      };
+      
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'audio/wav' });
+        // Convert to base64 and send for transcription
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const base64 = reader.result?.toString().split(',')[1];
+          if (base64) {
+            try {
+              const response = await apiCall('/api/messages/transcribe', {
+                method: 'POST',
+                body: JSON.stringify({ audio: base64 })
+              });
+              
+              if (response && response.success && selectedRoom && ws) {
+                ws.send(JSON.stringify({
+                  type: 'send_message',
+                  roomId: selectedRoom.roomId,
+                  content: response.transcript,
+                  sender: localStorage.getItem('user_id'),
+                  messageType: 'voice'
+                }));
+              }
+            } catch (error) {
+              console.error('Voice transcription failed:', error);
+            }
+          }
+        };
+        reader.readAsDataURL(blob);
+        
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+      };
+      
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+    }
+  };
+
+  const stopVoiceRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const handleMessageReaction = async (messageId: string, emoji: string) => {
+    // Send reaction to server
+    try {
+      await apiCall(`/api/whatsapp/message/${messageId}/react`, {
+        method: 'POST',
+        body: JSON.stringify({ emoji })
+      });
+    } catch (error) {
+      console.error('Failed to send reaction:', error);
+    }
+  };
+
+  const handleMessageReply = (message: Message) => {
+    setReplyingTo(message);
+  };
+
+  const handleMessageEdit = async (messageId: string, newContent: string) => {
+    try {
+      await apiCall(`/api/whatsapp/message/${messageId}/edit`, {
+        method: 'PATCH',
+        body: JSON.stringify({ content: newContent })
+      });
+    } catch (error) {
+      console.error('Failed to edit message:', error);
+    }
+  };
+
+  const handleMessageDelete = async (messageId: string, deleteForEveryone = false) => {
+    try {
+      await apiCall(`/api/whatsapp/message/${messageId}/delete`, {
+        method: 'DELETE',
+        body: JSON.stringify({ deleteForEveryone })
+      });
+    } catch (error) {
+      console.error('Failed to delete message:', error);
+    }
+  };
+
+  const handleMessageStar = async (messageId: string) => {
+    try {
+      await apiCall(`/api/whatsapp/message/${messageId}/star`, {
+        method: 'POST'
+      });
+    } catch (error) {
+      console.error('Failed to star message:', error);
+    }
+  };
+
+  const handleMessageCopy = (content: string) => {
+    navigator.clipboard.writeText(content);
+  };
+
+  const updateChatLastMessage = (roomId: string, message: string) => {
+    setRooms(prev => prev.map(room => 
+      room.roomId === roomId 
+        ? { ...room, lastMessage: message, lastMessageTime: new Date().toISOString() }
+        : room
+    ));
+  };
+
+  const filteredRooms = rooms.filter(room => {
+    if (searchQuery) {
+      return room.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+             room.lastMessage.toLowerCase().includes(searchQuery.toLowerCase());
+    }
+    return true;
+  });
+
+  const emojis = ['😀', '😂', '😍', '🤔', '😢', '😡', '👍', '👎', '❤️', '🔥', '💯', '🎉'];
+
+  return (
+    <Layout>
+      <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
+        {/* Chat List Sidebar */}
+        <div className="w-1/3 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+          {/* Header */}
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Chats</h1>
+              <div className="flex items-center space-x-2">
+                <button className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full">
+                  <MessageSquare size={20} />
+                </button>
+                <button className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full">
+                  <MoreVertical size={20} />
+                </button>
+              </div>
+            </div>
+            
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+              <input
+                type="text"
+                placeholder="Search chats..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-gray-700 border-0 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
+              />
+            </div>
+          </div>
+
+          {/* Chat List */}
+          <div className="flex-1 overflow-y-auto">
+            {filteredRooms.map((room) => (
+              <div
+                key={room.roomId}
+                onClick={() => selectRoom(room)}
+                className={`p-4 border-b border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                  selectedRoom?.roomId === room.roomId ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  {/* Avatar */}
+                  <div className="relative">
+                    <div className="w-12 h-12 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center">
+                      {room.isGroup ? (
+                        <Users size={20} className="text-gray-600 dark:text-gray-300" />
+                      ) : (
+                        <span className="text-lg font-medium text-gray-600 dark:text-gray-300">
+                          {room.name.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    {room.isOnline && !room.isGroup && (
+                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
+                    )}
+                  </div>
+
+                  {/* Chat Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-medium text-gray-900 dark:text-white truncate">
+                        {room.name}
+                        {room.isPinned && <span className="ml-1">📌</span>}
+                        {room.isMuted && <VolumeX size={14} className="ml-1 text-gray-400" />}
+                      </h3>
+                      <span className="text-xs text-gray-500">
+                        {room.lastMessageTime && new Date(room.lastMessageTime).toLocaleTimeString('en-US', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-gray-600 dark:text-gray-300 truncate">
+                        {room.isTyping ? (
+                          <span className="text-blue-500 italic">typing...</span>
+                        ) : (
+                          room.lastMessage
+                        )}
+                      </p>
+                      {room.unreadCount > 0 && (
+                        <span className="bg-blue-500 text-white text-xs rounded-full px-2 py-1 min-w-5 text-center">
+                          {room.unreadCount}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Chat Area */}
+        <div className="flex-1 flex flex-col">
+          {selectedRoom ? (
+            <>
+              {/* Chat Header */}
+              <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <button 
+                      className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+                      onClick={() => setSelectedRoom(null)}
+                    >
+                      <ArrowLeft size={20} />
+                    </button>
+                    
+                    <div className="relative">
+                      <div className="w-10 h-10 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center">
+                        {selectedRoom.isGroup ? (
+                          <Users size={16} className="text-gray-600 dark:text-gray-300" />
+                        ) : (
+                          <span className="font-medium text-gray-600 dark:text-gray-300">
+                            {selectedRoom.name.charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      {selectedRoom.isOnline && !selectedRoom.isGroup && (
+                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
+                      )}
+                    </div>
+
+                    <div>
+                      <h2 className="font-medium text-gray-900 dark:text-white">{selectedRoom.name}</h2>
+                      <p className="text-sm text-gray-500">
+                        {typingUsers.length > 0 ? (
+                          <span className="text-blue-500">
+                            {typingUsers.length === 1 ? `${typingUsers[0]} is typing...` : `${typingUsers.length} people are typing...`}
+                          </span>
+                        ) : selectedRoom.isGroup ? (
+                          `${selectedRoom.members} members`
+                        ) : selectedRoom.isOnline ? (
+                          'online'
+                        ) : (
+                          'last seen recently'
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <button 
+                      onClick={handleVoiceCall}
+                      className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+                      title="Voice call"
+                    >
+                      <Phone size={20} />
+                    </button>
+                    <button 
+                      onClick={handleVideoCall}
+                      className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+                      title="Video call"
+                    >
+                      <Video size={20} />
+                    </button>
+                    <button 
+                      onClick={() => setShowChatInfo(!showChatInfo)}
+                      className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+                      title="Chat info"
+                    >
+                      <MoreVertical size={20} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Messages Area */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-gray-900">
+                {messages.map((message) => (
+                  <ChatMessage
+                    key={message.id}
+                    id={message.id}
+                    content={message.content}
+                    sender={message.sender}
+                    timestamp={message.timestamp}
+                    isSent={message.sender === localStorage.getItem('user_id')}
+                    status={message.status}
+                    messageType={message.messageType}
+                    mediaUrl={message.mediaUrl}
+                    duration={message.duration}
+                    reactions={message.reactions}
+                    replyTo={message.replyTo}
+                    isStarred={message.isStarred}
+                    isEdited={message.isEdited}
+                    onReply={() => handleMessageReply(message)}
+                    onReact={(emoji) => handleMessageReaction(message.id, emoji)}
+                    onDelete={() => handleMessageDelete(message.id)}
+                    onEdit={() => {/* Handle edit */}}
+                    onStar={() => handleMessageStar(message.id)}
+                    onCopy={() => handleMessageCopy(message.content)}
+                  />
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Reply Preview */}
+              {replyingTo && (
+                <div className="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 p-3 mx-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                        Replying to {replyingTo.sender}
+                      </p>
+                      <p className="text-sm text-gray-600 dark:text-gray-300 truncate">
+                        {replyingTo.content}
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => setReplyingTo(null)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Message Input */}
+              <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4">
+                <div className="flex items-center space-x-2">
+                  {/* Attachment Button */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowAttachmentMenu(!showAttachmentMenu)}
+                      className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full"
+                    >
+                      <Paperclip size={20} />
+                    </button>
+                    
+                    {showAttachmentMenu && (
+                      <div className="absolute bottom-full left-0 mb-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-700 p-2 min-w-48">
+                        <button 
+                          onClick={() => fileInputRef.current?.click()}
+                          className="w-full text-left p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center space-x-2"
+                        >
+                          <Image size={16} />
+                          <span>Photo & Video</span>
+                        </button>
+                        <button 
+                          onClick={() => fileInputRef.current?.click()}
+                          className="w-full text-left p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center space-x-2"
+                        >
+                          <FileText size={16} />
+                          <span>Document</span>
+                        </button>
+                        <button 
+                          className="w-full text-left p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center space-x-2"
+                        >
+                          <Camera size={16} />
+                          <span>Camera</span>
+                        </button>
+                        <button 
+                          className="w-full text-left p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center space-x-2"
+                        >
+                          <MapPin size={16} />
+                          <span>Location</span>
+                        </button>
+                        <button 
+                          className="w-full text-left p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded flex items-center space-x-2"
+                        >
+                          <Contact size={16} />
+                          <span>Contact</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Message Input */}
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      value={newMessage}
+                      onChange={(e) => {
+                        setNewMessage(e.target.value);
+                        handleTyping();
+                      }}
+                      onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                      placeholder="Type a message..."
+                      className="w-full px-4 py-2 pr-12 bg-gray-100 dark:bg-gray-700 border-0 rounded-full focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-white"
+                    />
+                    
+                    {/* Emoji Button */}
+                    <button
+                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+                    >
+                      <Smile size={16} />
+                    </button>
+
+                    {/* Emoji Picker */}
+                    {showEmojiPicker && (
+                      <div className="absolute bottom-full right-0 mb-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border dark:border-gray-700 p-3 grid grid-cols-6 gap-2">
+                        {emojis.map((emoji) => (
+                          <button
+                            key={emoji}
+                            onClick={() => {
+                              setNewMessage(prev => prev + emoji);
+                              setShowEmojiPicker(false);
+                            }}
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-lg"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Voice/Send Button */}
+                  {newMessage.trim() ? (
+                    <button
+                      onClick={sendMessage}
+                      className="p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full"
+                    >
+                      <Send size={20} />
+                    </button>
+                  ) : (
+                    <button
+                      onMouseDown={startVoiceRecording}
+                      onMouseUp={stopVoiceRecording}
+                      onTouchStart={startVoiceRecording}
+                      onTouchEnd={stopVoiceRecording}
+                      className={`p-2 rounded-full ${isRecording ? 'bg-red-500 hover:bg-red-600' : 'bg-gray-500 hover:bg-gray-600'} text-white`}
+                    >
+                      <Mic size={20} />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+            </>
+          ) : (
+            /* No Chat Selected */
+            <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+              <div className="text-center">
+                <MessageSquare size={64} className="mx-auto text-gray-400 mb-4" />
+                <h2 className="text-xl font-medium text-gray-600 dark:text-gray-300 mb-2">
+                  Select a chat to start messaging
+                </h2>
+                <p className="text-gray-500">
+                  Choose from your existing conversations or start a new one
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Chat Info Sidebar */}
+        {showChatInfo && selectedRoom && (
+          <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 p-4">
+            <div className="text-center mb-6">
+              <div className="w-20 h-20 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mb-3 flex items-center justify-center">
+                {selectedRoom.isGroup ? (
+                  <Users size={32} className="text-gray-600 dark:text-gray-300" />
+                ) : (
+                  <span className="text-2xl font-medium text-gray-600 dark:text-gray-300">
+                    {selectedRoom.name.charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white">{selectedRoom.name}</h3>
+              <p className="text-sm text-gray-500">
+                {selectedRoom.isGroup ? `${selectedRoom.members} members` : 'Contact'}
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <button className="w-full text-left p-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg flex items-center space-x-3">
+                <Star size={20} />
+                <span>Starred Messages</span>
+              </button>
+              
+              <button className="w-full text-left p-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg flex items-center space-x-3">
+                <VolumeX size={20} />
+                <span>Mute Notifications</span>
+              </button>
+              
+              <button className="w-full text-left p-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg flex items-center space-x-3">
+                <Archive size={20} />
+                <span>Archive Chat</span>
+              </button>
+              
+              {selectedRoom.isGroup && (
+                <>
+                  <button className="w-full text-left p-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg flex items-center space-x-3">
+                    <UserPlus size={20} />
+                    <span>Add Members</span>
+                  </button>
+                  
+                  <button className="w-full text-left p-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg flex items-center space-x-3">
+                    <Settings size={20} />
+                    <span>Group Settings</span>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+}
+  
+
+
+
+  
+  const handleSendMessage = async () => {
+    if (!newMessage.trim()) return;
+    await sendMessage(newMessage, 'text');
+    setNewMessage('');
+  };
+  
+  const startTyping = async () => {
+    if (!selectedRoom || !newMessage) return;
+    
+    try {
+      await apiCall(`/api/whatsapp/chat/${selectedRoom.roomId}/typing`, {
+        method: 'POST',
+        body: JSON.stringify({
+          isTyping: true
+        })
+      });
+    } catch (error) {
+      console.error('Failed to send typing indicator:', error);
+    }
+  };
+  
+  const stopTyping = async () => {
+    if (!selectedRoom) return;
+    
+    try {
+      await apiCall(`/api/whatsapp/chat/${selectedRoom.roomId}/typing`, {
+        method: 'POST',
+        body: JSON.stringify({
+          isTyping: false
+        })
+      });
+    } catch (error) {
+      console.error('Failed to stop typing indicator:', error);
+    }
+  };
+  
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high': return '#ef4444';
+      case 'medium': return '#f59e0b';
+      case 'low': return '#10b981';
+      default: return '#6b7280';
+    }
+  };
+  
+  // Additional API functions for other features
+  const initiateCall = async (calleeId: string, callType: 'audio' | 'video') => {
+    try {
+      const data = await apiCall('/api/whatsapp/call/initiate', {
+        method: 'POST',
+        body: JSON.stringify({
+          calleeId,
+          callType
+        })
+      });
+      
+      if (data && data.success) {
+        alert(`${callType.charAt(0).toUpperCase() + callType.slice(1)} call initiated!`);
+      } else {
+        alert('Failed to initiate call');
+      }
+    } catch (error) {
+      console.error('Failed to initiate call:', error);
+    }
+  };
+  
+  const createGroup = async (name: string, participants: string[]) => {
+    try {
+      const data = await apiCall('/api/whatsapp/groups/create', {
+        method: 'POST',
+        body: JSON.stringify({
+          name,
+          participants
+        })
+      });
+      
+      if (data && data.success) {
+        alert('Group created successfully!');
+        loadRooms(); // Reload the rooms list
+      } else {
+        alert('Failed to create group');
+      }
+    } catch (error) {
+      console.error('Failed to create group:', error);
+    }
+  };
+
+  return (
+    <Layout>
+      <div style={{ display: 'flex', height: '100vh' }}>
+        {/* Rooms Sidebar */}
+        <div style={{
+          width: '300px',
+          background: 'var(--bg-primary)',
+          borderRight: '1px solid var(--border-medium)',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{ padding: '20px', borderBottom: '1px solid var(--border-medium)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                Conversations
+              </h2>
+              <button
+                onClick={async () => {
+                  const groupName = prompt('Enter group name:');
+                  if (groupName) {
+                    await createGroup(groupName, []);
+                  }
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  borderRadius: '4px'
+                }}
+                title="Create new group"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+            </div>
+            <div style={{ position: 'relative' }}>
+              <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
+              <input
+                type="text"
+                placeholder="Search..."
+                style={{
+                  width: '100%',
+                  padding: '10px 10px 10px 40px',
+                  border: '1px solid var(--border-medium)',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  outline: 'none'
+                }}
+              />
+            </div>
+          </div>
+
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            {rooms.map((room) => (
+              <div
+                key={room.roomId}
+                onClick={() => selectRoom(room)}
+                style={{
+                  padding: '16px 20px',
+                  borderBottom: '1px solid var(--border-light)',
+                  cursor: 'pointer',
+                  background: selectedRoom?.roomId === room.roomId ? 'var(--bg-secondary)' : 'var(--bg-primary)',
+                  transition: 'background 0.2s',
+                  color: 'var(--text-primary)'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-hover)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = selectedRoom?.roomId === room.roomId ? 'var(--bg-secondary)' : 'var(--bg-primary)'}
+              >
+                <div style={{ fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px' }}>
+                  {room.name}
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', flex: 1 }}>
+                    {room.lastMessage ? (
+                      <span>
+                        {room.lastMessage.length > 30 ? `${room.lastMessage.substring(0, 30)}...` : room.lastMessage}
+                      </span>
+                    ) : (
+                      <span>No messages yet</span>
+                    )}
+                  </div>
+                  {room.unreadCount > 0 && (
+                    <div style={{
+                      minWidth: '20px',
+                      height: '20px',
+                      backgroundColor: 'var(--bubble-sent)',
+                      color: 'white',
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      marginLeft: '8px'
+                    }}>
+                      {room.unreadCount > 99 ? '99+' : room.unreadCount}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                    {room.members} members
+                  </span>
+                  {room.isOnline && (
+                    <div style={{
+                      width: '8px',
+                      height: '8px',
+                      backgroundColor: '#10b981',
+                      borderRadius: '50%',
+                      marginTop: '2px'
+                    }}></div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Main Messages Area */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
+          {/* Header */}
+          <div style={{
+            padding: '20px 32px',
+            background: 'var(--bg-primary)',
+            borderBottom: '1px solid var(--border-medium)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <div>
+              <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
+                {selectedRoom?.name || 'Select a conversation'}
+              </h2>
+              {selectedRoom && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
+                    {selectedRoom.members} members
+                  </span>
+                  {selectedRoom.isOnline && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <div style={{
+                        width: '8px',
+                        height: '8px',
+                        backgroundColor: '#10b981',
+                        borderRadius: '50%'
+                      }}></div>
+                      <span style={{ fontSize: '12px', color: '#10b981' }}>online</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <select
+                value={filterPriority}
+                onChange={(e) => setFilterPriority(e.target.value)}
+                style={{
+                  padding: '8px 12px',
+                  border: '1px solid var(--border-medium)',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  background: 'var(--bg-primary)',
+                  color: 'var(--text-primary)',
+                  outline: 'none'
+                }}
+              >
+                <option value="all">All Messages</option>
+                <option value="high">High Priority</option>
+                <option value="medium">Medium Priority</option>
+                <option value="low">Low Priority</option>
+              </select>
+              
+              <button
+                onClick={async () => {
+                  if (selectedRoom) {
+                    // Get summary for this room
+                    const data = await apiCall('/api/chat/conversation', {
+                      method: 'POST',
+                      body: JSON.stringify({
+                        message: `Summarize the conversation in room ${selectedRoom.name}`
+                      })
+                    });
+                    if (data && data.success) {
+                      alert(data.response);
+                    }
+                  }
+                }}
+                style={{
+                  padding: '8px 12px',
+                  border: '1px solid var(--border-medium)',
+                  borderRadius: '8px',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+                title="Get AI Summary"
+              >
+                <Sparkles size={16} />
+                Summary
+              </button>
+              
+              <button
+                onClick={async () => {
+                  // Initiate audio call
+                  if (selectedRoom) {
+                    const calleeId = selectedRoom.participants?.find((p: any) => p.username !== localStorage.getItem('username'))?.id;
+                    if (calleeId) {
+                      await initiateCall(calleeId, 'audio');
+                    } else {
+                      alert('No participant to call');
+                    }
+                  }
+                }}
+                style={{
+                  padding: '8px 12px',
+                  border: '1px solid var(--border-medium)',
+                  borderRadius: '8px',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+                title="Start Audio Call"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                </svg>
+              </button>
+              
+              <button
+                onClick={async () => {
+                  // Initiate video call
+                  if (selectedRoom) {
+                    const calleeId = selectedRoom.participants?.find((p: any) => p.username !== localStorage.getItem('username'))?.id;
+                    if (calleeId) {
+                      await initiateCall(calleeId, 'video');
+                    } else {
+                      alert('No participant to call');
+                    }
+                  }
+                }}
+                style={{
+                  padding: '8px 12px',
+                  border: '1px solid var(--border-medium)',
+                  borderRadius: '8px',
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+                title="Start Video Call"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="23 7 16 12 23 17 23 7" />
+                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div style={{ flex: 1, overflow: 'auto', padding: '24px 32px', background: 'var(--bg-chat)' }}>
+            {messages.map((message, index) => (
+              <ChatMessage
+                key={`${message.id || index}-${message.timestamp}`}
+                content={message.content}
+                sender={message.sender}
+                timestamp={new Date(message.timestamp)}
+                isSent={message.sender === localStorage.getItem('username')}
+                priority={message.priority}
+                onReply={() => {
+                  setNewMessage(`@${message.sender} `);
+                  document.getElementById('message-input')?.focus();
+                }}
+                onReact={(emoji) => {
+                  console.log(`Reacted with ${emoji} to message from ${message.sender}`);
+                }}
+                status={message.status}
+                id={message.id}
+                onEdit={() => {
+                  // Implement message edit functionality
+                  const newContent = prompt('Edit message:', message.content);
+                  if (newContent && newContent !== message.content) {
+                    // Call API to edit the message
+                    apiCall(`/api/whatsapp/messages/${message.id}/edit`, {
+                      method: 'PUT',
+                      body: JSON.stringify({ content: newContent })
+                    }).then(editResult => {
+                      if (editResult && editResult.success) {
+                        // Update the message in the UI
+                        setMessages(prev => prev.map(msg => 
+                          msg.id === message.id 
+                            ? { ...msg, content: newContent } 
+                            : msg
+                        ));
+                        alert('Message edited successfully!');
+                      } else {
+                        alert('Failed to edit message');
+                      }
+                    }).catch(err => {
+                      console.error('Error editing message:', err);
+                      alert('Failed to edit message');
+                    });
+                  }
+                }}
+                onDelete={() => {
+                  // Implement message delete functionality
+                  if (confirm('Do you want to delete this message?')) {
+                    // Delete for me
+                    setMessages(prev => prev.filter(msg => msg.id !== message.id));
+                    
+                    // Option to delete for everyone (if within time window)
+                    if (confirm('Also delete for everyone?')) {
+                      // Call API to delete for everyone
+                      apiCall(`/api/whatsapp/messages/${message.id}/delete`, {
+                        method: 'DELETE',
+                        body: JSON.stringify({ deleteForEveryone: true })
+                      }).catch(console.error);
+                    } else {
+                      // Call API to delete for me only
+                      apiCall(`/api/whatsapp/messages/${message.id}/delete`, {
+                        method: 'DELETE',
+                        body: JSON.stringify({ deleteForEveryone: false })
+                      }).catch(console.error);
+                    }
+                  }
+                }}
+                onForward={() => {
+                  // Implement message forward functionality
+                  alert('Forward message functionality coming soon!');
+                }}
+              />
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input Area */}
+          {selectedRoom && (
+            <div style={{
+              padding: '20px 32px',
+              background: 'var(--bg-primary)',
+              borderTop: '1px solid var(--border-medium)'
+            }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <button
+                  style={{
+                    padding: '12px',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-medium)',
+                    borderRadius: '50%',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  title="Attach media"
+                  onClick={() => {
+                    // File attachment functionality
+                    alert('File attachment coming soon!');
+                  }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-primary)" strokeWidth="2">
+                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                  </svg>
+                </button>
+                <input
+                  id="message-input"
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => {
+                    setNewMessage(e.target.value);
+                    if (e.target.value) startTyping();
+                    else stopTyping();
+                  }}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  placeholder="Type your message..."
+                  style={{
+                    flex: 1,
+                    padding: '12px 16px',
+                    border: '1px solid var(--border-medium)',
+                    borderRadius: '24px',
+                    fontSize: '14px',
+                    background: 'var(--bg-secondary)',
+                    color: 'var(--text-primary)',
+                    outline: 'none'
+                  }}
+                />
+                <button
+                  onClick={handleSendMessage}
+                  style={{
+                    padding: '12px 20px',
+                    background: 'var(--bubble-sent)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '24px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontWeight: '600'
+                  }}
+                >
+                  <Send size={18} />
+                  Send
+                </button>
+                <button
+                  style={{
+                    padding: '12px',
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-medium)',
+                    borderRadius: '50%',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                  title="Voice message"
+                  onClick={() => {
+                    // Voice message functionality
+                    alert('Voice message coming soon!');
+                  }}
+                >
+                  <Mic size={20} color="var(--text-primary)" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Panel - AI Insights and Security */}
+        {selectedRoom && (
+          <div style={{
+            width: '320px',
+            background: 'var(--bg-primary)',
+            borderLeft: '1px solid var(--border-medium)',
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '20px',
+            overflow: 'auto'
+          }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: 'var(--text-primary)', marginBottom: '20px' }}>
+              AI Insights
+            </h3>
+            
+            <SecurityStatus roomId={selectedRoom?.roomId} />
+            
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <Bot size={18} color="var(--text-primary)" />
+                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                  Conversation Summary
+                </h4>
+              </div>
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                Click the Summary button to get an AI-generated summary of this conversation.
+              </p>
+            </div>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <Bell size={18} color="var(--text-primary)" />
+                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                  Priority Messages
+                </h4>
+              </div>
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                {messages.filter(m => m.priority === 'high').length} high priority messages in this conversation.
+              </p>
+            </div>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                <Clock size={18} color="var(--text-primary)" />
+                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>
+                  Action Items
+                </h4>
+              </div>
+              <p style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>
+                AI will identify action items from this conversation.
+              </p>
+            </div>
+            
+            <div style={{ marginTop: 'auto' }}>
+              <button
+                onClick={async () => {
+                  // Get daily summary
+                  const data = await apiCall('/api/chat/summarize/day', {
+                    method: 'POST',
+                    body: JSON.stringify({})
+                  });
+                  if (data && data.success) {
+                    alert(data.summary);
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  background: 'var(--bubble-sent)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                <Sparkles size={16} />
+                Daily Summary
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+}

@@ -1,0 +1,45 @@
+---
+- name: Create WhatsApp bridge data directory
+  file:
+    path: "{{ docker_data_directory }}/whatsapp"
+    state: directory
+    owner: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: Pull WhatsApp bridge Docker image
+  docker_image:
+    name: dock.mau.dev/mautrix/whatsapp:latest
+    source: pull
+
+- name: Create WhatsApp bridge container
+  docker_container:
+    name: whatsapp-bridge
+    image: dock.mau.dev/mautrix/whatsapp:latest
+    state: started
+    restart_policy: unless-stopped
+    env:
+      TZ: UTC
+      ID_SERVER: "https://{{ matrix_domain }}"
+      HS_TOKEN: "{{ whatsapp_bridge_token }}"
+      AS_TOKEN: "{{ whatsapp_bridge_token }}"
+      REGISTRATION_PATH: "/data/whatsapp-registration.yaml"
+      CONFIG_PATH: "/data/config.yaml"
+    volumes:
+      - "{{ docker_data_directory }}/whatsapp:/data"
+    networks:
+      - "{{ docker_network_name }}"
+    networks_cli_compatible: yes
+    pull: yes
+
+- name: Wait for WhatsApp bridge to be ready
+  wait_for:
+    port: 29318
+    host: localhost
+    delay: 5
+    timeout: 60
+
+- name: Configure WhatsApp bridge registration
+  template:
+    src: whatsapp-registration.yaml.j2
+    dest: "{{ docker_data_directory }}/whatsapp/registration.yaml"
+  notify: restart whatsapp-bridge

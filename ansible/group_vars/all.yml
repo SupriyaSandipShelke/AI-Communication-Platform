@@ -1,0 +1,28 @@
+---
+# Matrix Synapse Configuration
+matrix_domain: "matrix.example.com"
+matrix_server_name: "{{ matrix_domain }}"
+matrix_report_stats: "yes"
+
+# Database Configuration
+postgres_db: "matrix_synapse"
+postgres_user: "synapse_user"
+postgres_password: "secure_postgres_password"
+postgres_port: 5432
+
+# WhatsApp Bridge Configuration
+whatsapp_bridge_token: "your_whatsapp_bridge_token_here"
+whatsapp_phone_number: "+1234567890"
+
+# Nginx Configuration
+nginx_server_name: "{{ matrix_domain }}"
+nginx_ssl_enabled: true
+nginx_ssl_email: "admin@{{ matrix_domain }}"
+
+# Docker Configuration
+docker_network_name: "matrix_network"
+docker_data_directory: "/opt/matrix-data"
+
+# Security
+enable_https: true
+ssl_auto_renew: true

@@ -1,0 +1,52 @@
+---
+- name: Install PostgreSQL
+  apt:
+    name: 
+      - postgresql
+      - postgresql-contrib
+    state: present
+    update_cache: yes
+
+- name: Start and enable PostgreSQL
+  systemd:
+    name: postgresql
+    state: started
+    enabled: yes
+
+- name: Create PostgreSQL database
+  become: yes
+  become_user: postgres
+  postgresql_db:
+    name: "{{ postgres_db }}"
+    state: present
+
+- name: Create PostgreSQL user
+  become: yes
+  become_user: postgres
+  postgresql_user:
+    name: "{{ postgres_user }}"
+    password: "{{ postgres_password }}"
+    db: "{{ postgres_db }}"
+    priv: ALL
+    state: present
+
+- name: Configure PostgreSQL for Docker access
+  lineinfile:
+    path: /etc/postgresql/*/main/postgresql.conf
+    regexp: '^#?listen_addresses'
+    line: 'listen_addresses = ''*'''
+    backup: yes
+  notify: restart postgresql
+
+- name: Configure PostgreSQL authentication
+  copy:
+    content: |
+      host all all 0.0.0.0/0 md5
+    dest: /etc/postgresql/*/main/pg_hba.conf
+    backup: yes
+  notify: restart postgresql
+
+- name: Create Docker network for PostgreSQL
+  docker_network:
+    name: "{{ docker_network_name }}"
+    driver: bridge

@@ -1,0 +1,31 @@
+---
+- name: Deploy Matrix Synapse and WhatsApp Bridge
+  hosts: matrix
+  become: yes
+  vars:
+    matrix_domain: "{{ matrix_domain }}"
+    whatsapp_bridge_token: "{{ whatsapp_bridge_token }}"
+    postgres_password: "{{ postgres_password }}"
+  
+  pre_tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+  roles:
+    - docker
+    - postgres
+    - synapse
+    - nginx
+    - whatsapp
+
+  post_tasks:
+    - name: Restart all services
+      systemd:
+        name: "{{ item }}"
+        state: restarted
+        daemon_reload: yes
+      loop:
+        - docker
+      when: ansible_distribution == "Ubuntu"

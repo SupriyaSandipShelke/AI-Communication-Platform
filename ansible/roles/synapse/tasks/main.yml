@@ -1,0 +1,51 @@
+---
+- name: Create Matrix data directory
+  file:
+    path: "{{ docker_data_directory }}/synapse"
+    state: directory
+    owner: "{{ ansible_user }}"
+    mode: '0755'
+
+- name: Pull Synapse Docker image
+  docker_image:
+    name: matrixdotorg/synapse
+    source: pull
+
+- name: Generate Synapse configuration
+  docker_container:
+    name: synapse-gen-config
+    image: matrixdotorg/synapse:latest
+    command: generate
+    env:
+      SYNAPSE_SERVER_NAME: "{{ matrix_server_name }}"
+      SYNAPSE_REPORT_STATS: "{{ matrix_report_stats }}"
+    volumes:
+      - "{{ docker_data_directory }}/synapse:/data"
+    auto_remove: yes
+  register: gen_result
+
+- name: Create Synapse container
+  docker_container:
+    name: synapse
+    image: matrixdotorg/synapse:latest
+    state: started
+    restart_policy: unless-stopped
+    published_ports:
+      - "8008:8008"
+      - "8448:8448"
+    env:
+      SYNAPSE_SERVER_NAME: "{{ matrix_server_name }}"
+      SYNAPSE_REPORT_STATS: "{{ matrix_report_stats }}"
+    volumes:
+      - "{{ docker_data_directory }}/synapse:/data"
+    networks:
+      - "{{ docker_network_name }}"
+    networks_cli_compatible: yes
+    pull: yes
+
+- name: Wait for Synapse to be ready
+  wait_for:
+    port: 8008
+    host: localhost
+    delay: 10
+    timeout: 60

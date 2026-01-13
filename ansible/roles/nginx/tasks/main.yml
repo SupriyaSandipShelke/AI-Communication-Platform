@@ -1,0 +1,61 @@
+---
+- name: Install Nginx
+  apt:
+    name: nginx
+    state: present
+    update_cache: yes
+
+- name: Create Nginx configuration directory
+  file:
+    path: "{{ docker_data_directory }}/nginx/conf"
+    state: directory
+    mode: '0755'
+
+- name: Create Nginx configuration for Matrix
+  template:
+    src: matrix.conf.j2
+    dest: "{{ docker_data_directory }}/nginx/conf/matrix.conf"
+  notify: reload nginx
+
+- name: Create SSL certificate directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ docker_data_directory }}/certbot/conf"
+    - "{{ docker_data_directory }}/certbot/www"
+
+- name: Pull Nginx Docker image
+  docker_image:
+    name: nginx:alpine
+    source: pull
+
+- name: Create Nginx container
+  docker_container:
+    name: nginx
+    image: nginx:alpine
+    state: started
+    restart_policy: unless-stopped
+    published_ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "{{ docker_data_directory }}/nginx/conf:/etc/nginx/conf.d"
+      - "{{ docker_data_directory }}/certbot/conf:/etc/letsencrypt"
+      - "{{ docker_data_directory }}/certbot/www:/var/www/certbot"
+    networks:
+      - "{{ docker_network_name }}"
+    networks_cli_compatible: yes
+
+- name: Install Certbot
+  apt:
+    name: certbot
+    state: present
+
+- name: Setup SSL auto-renewal
+  cron:
+    name: "Renew SSL certificates"
+    minute: "30"
+    hour: "2"
+    job: "/usr/bin/certbot renew --quiet"

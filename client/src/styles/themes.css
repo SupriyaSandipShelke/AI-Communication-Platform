@@ -1,0 +1,404 @@
+/* Professional Theme System - Enterprise Grade */
+
+/* ==================== Light Theme (Default) ==================== */
+[data-theme="light"] {
+  /* Background Colors */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #f1f3f5;
+  --bg-chat: #eef2f5;
+  --bg-hover: #e9ecef;
+  --bg-active: #dee2e6;
+  
+  /* Chat Bubble Colors */
+  --bubble-sent: #0084ff;
+  --bubble-sent-hover: #006ad4;
+  --bubble-received: #ffffff;
+  --bubble-received-hover: #f8f9fa;
+  
+  /* Text Colors */
+  --text-primary: #1a1d1f;
+  --text-secondary: #6e7781;
+  --text-tertiary: #9ca3af;
+  --text-inverse: #ffffff;
+  --text-link: #0084ff;
+  
+  /* Border Colors */
+  --border-light: #e9ecef;
+  --border-medium: #dee2e6;
+  --border-heavy: #ced4da;
+  
+  /* Shadow */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.12);
+  
+  /* Chat Background Pattern */
+  --chat-bg-pattern: linear-gradient(to bottom, #eef2f5 0%, #e8ecf0 100%);
+  
+  /* Glassmorphism */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.18);
+}
+
+/* ==================== Dark Theme (Professional) ==================== */
+[data-theme="dark"] {
+  /* Background Colors */
+  --bg-primary: #1a1d21;
+  --bg-secondary: #202225;
+  --bg-tertiary: #2c2f33;
+  --bg-chat: #36393f;
+  --bg-hover: #3a3d42;
+  --bg-active: #42464d;
+  
+  /* Chat Bubble Colors */
+  --bubble-sent: #0084ff;
+  --bubble-sent-hover: #006ad4;
+  --bubble-received: #2c2f33;
+  --bubble-received-hover: #36393f;
+  
+  /* Text Colors */
+  --text-primary: #dcddde;
+  --text-secondary: #b9bbbe;
+  --text-tertiary: #72767d;
+  --text-inverse: #1a1d21;
+  --text-link: #00a8ff;
+  
+  /* Border Colors */
+  --border-light: #2c2f33;
+  --border-medium: #36393f;
+  --border-heavy: #42464d;
+  
+  /* Shadow */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.4);
+  
+  /* Chat Background Pattern */
+  --chat-bg-pattern: linear-gradient(to bottom, #36393f 0%, #2c2f33 100%);
+  
+  /* Glassmorphism */
+  --glass-bg: rgba(26, 29, 33, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+}
+
+/* ==================== Gradient Theme (Modern) ==================== */
+[data-theme="gradient"] {
+  /* Background Colors */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #f1f3f5;
+  --bg-chat: transparent;
+  --bg-hover: rgba(255, 255, 255, 0.5);
+  --bg-active: rgba(255, 255, 255, 0.7);
+  
+  /* Chat Bubble Colors */
+  --bubble-sent: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --bubble-sent-hover: linear-gradient(135deg, #5568d3 0%, #6a3f8f 100%);
+  --bubble-received: #ffffff;
+  --bubble-received-hover: #f8f9fa;
+  
+  /* Text Colors */
+  --text-primary: #1a1d1f;
+  --text-secondary: #6e7781;
+  --text-tertiary: #9ca3af;
+  --text-inverse: #ffffff;
+  --text-link: #667eea;
+  
+  /* Border Colors */
+  --border-light: rgba(102, 126, 234, 0.1);
+  --border-medium: rgba(102, 126, 234, 0.2);
+  --border-heavy: rgba(102, 126, 234, 0.3);
+  
+  /* Shadow */
+  --shadow-sm: 0 1px 3px rgba(102, 126, 234, 0.1);
+  --shadow-md: 0 4px 12px rgba(102, 126, 234, 0.15);
+  --shadow-lg: 0 12px 24px rgba(102, 126, 234, 0.2);
+  
+  /* Chat Background Pattern */
+  --chat-bg-pattern: linear-gradient(135deg, 
+    rgba(102, 126, 234, 0.05) 0%, 
+    rgba(118, 75, 162, 0.05) 100%
+  );
+  
+  /* Glassmorphism */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(102, 126, 234, 0.2);
+}
+
+/* ==================== Glassmorphism Theme ==================== */
+[data-theme="glassmorphism"] {
+  /* Background Colors */
+  --bg-primary: rgba(255, 255, 255, 0.05);
+  --bg-secondary: rgba(255, 255, 255, 0.08);
+  --bg-tertiary: rgba(255, 255, 255, 0.12);
+  --bg-chat: transparent;
+  --bg-hover: rgba(255, 255, 255, 0.15);
+  --bg-active: rgba(255, 255, 255, 0.2);
+  
+  /* Chat Bubble Colors */
+  --bubble-sent: rgba(0, 132, 255, 0.2);
+  --bubble-sent-hover: rgba(0, 132, 255, 0.3);
+  --bubble-received: rgba(255, 255, 255, 0.1);
+  --bubble-received-hover: rgba(255, 255, 255, 0.15);
+  
+  /* Text Colors */
+  --text-primary: #1a1d1f;
+  --text-secondary: #6e7781;
+  --text-tertiary: #9ca3af;
+  --text-inverse: #ffffff;
+  --text-link: #0084ff;
+  
+  /* Border Colors */
+  --border-light: rgba(255, 255, 255, 0.1);
+  --border-medium: rgba(255, 255, 255, 0.15);
+  --border-heavy: rgba(255, 255, 255, 0.2);
+  
+  /* Shadow */
+  --shadow-sm: 0 4px 6px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 8px 16px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 16px 32px rgba(0, 0, 0, 0.15);
+  
+  /* Chat Background Pattern */
+  --chat-bg-pattern: radial-gradient(
+    circle at 20% 50%,
+    rgba(102, 126, 234, 0.1) 0%,
+    transparent 50%
+  ), radial-gradient(
+    circle at 80% 80%,
+    rgba(118, 75, 162, 0.1) 0%,
+    transparent 50%
+  );
+  
+  /* Glassmorphism */
+  --glass-bg: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.18);
+  
+  /* Backdrop filter */
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* ==================== Modern Professional Theme ==================== */
+[data-theme="modern"] {
+  /* Background Colors */
+  --bg-primary: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  --bg-secondary: rgba(255, 255, 255, 0.85);
+  --bg-tertiary: rgba(255, 255, 255, 0.7);
+  --bg-chat: rgba(255, 255, 255, 0.9);
+  --bg-hover: rgba(255, 255, 255, 0.95);
+  --bg-active: rgba(255, 255, 255, 1);
+  
+  /* Chat Bubble Colors */
+  --bubble-sent: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --bubble-sent-hover: linear-gradient(135deg, #5a6fd8 0%, #6a3f8f 100%);
+  --bubble-received: rgba(255, 255, 255, 0.95);
+  --bubble-received-hover: rgba(255, 255, 255, 1);
+  
+  /* Text Colors */
+  --text-primary: #2d3748;
+  --text-secondary: #4a5568;
+  --text-tertiary: #718096;
+  --text-inverse: #ffffff;
+  --text-link: #667eea;
+  
+  /* Border Colors */
+  --border-light: rgba(102, 126, 234, 0.15);
+  --border-medium: rgba(102, 126, 234, 0.3);
+  --border-heavy: rgba(102, 126, 234, 0.45);
+  
+  /* Shadow */
+  --shadow-sm: 0 2px 4px rgba(102, 126, 234, 0.1);
+  --shadow-md: 0 4px 12px rgba(102, 126, 234, 0.15);
+  --shadow-lg: 0 8px 24px rgba(102, 126, 234, 0.2);
+  
+  /* Chat Background Pattern */
+  --chat-bg-pattern: linear-gradient(135deg, 
+    rgba(102, 126, 234, 0.03) 0%, 
+    rgba(118, 75, 162, 0.03) 100%
+  ), radial-gradient(
+    circle at 80% 20%,
+    rgba(102, 126, 234, 0.05) 0%,
+    transparent 40%
+  );
+  
+  /* Glassmorphism */
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(102, 126, 234, 0.25);
+}
+
+/* ==================== Minimal Enterprise Theme ==================== */
+[data-theme="minimal"] {
+  /* Background Colors */
+  --bg-primary: #fafbfc;
+  --bg-secondary: #f6f8fa;
+  --bg-tertiary: #ebeef1;
+  --bg-chat: #f0f3f6;
+  --bg-hover: #e6e9ed;
+  --bg-active: #d8dce1;
+  
+  /* Chat Bubble Colors */
+  --bubble-sent: #2d3748;
+  --bubble-sent-hover: #1a202c;
+  --bubble-received: #ffffff;
+  --bubble-received-hover: #f6f8fa;
+  
+  /* Text Colors */
+  --text-primary: #1a202c;
+  --text-secondary: #4a5568;
+  --text-tertiary: #718096;
+  --text-inverse: #ffffff;
+  --text-link: #2b6cb0;
+  
+  /* Border Colors */
+  --border-light: #e2e8f0;
+  --border-medium: #cbd5e0;
+  --border-heavy: #a0aec0;
+  
+  /* Shadow */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.08);
+  
+  /* Chat Background Pattern */
+  --chat-bg-pattern: linear-gradient(to bottom, #f0f3f6 0%, #e6e9ed 100%);
+  
+  /* Glassmorphism */
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(226, 232, 240, 0.5);
+}
+
+/* ==================== Global Styles ==================== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* ==================== Smooth Transitions ==================== */
+.theme-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ==================== Glassmorphism Elements ==================== */
+.glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* ==================== Professional Shadows ==================== */
+.shadow-sm {
+  box-shadow: var(--shadow-sm);
+}
+
+.shadow-md {
+  box-shadow: var(--shadow-md);
+}
+
+.shadow-lg {
+  box-shadow: var(--shadow-lg);
+}
+
+/* ==================== Chat Backgrounds ==================== */
+.chat-background {
+  background: var(--chat-bg-pattern);
+  min-height: 100vh;
+}
+
+.chat-background-1v1 {
+  background: var(--chat-bg-pattern);
+  position: relative;
+}
+
+.chat-background-group {
+  background: var(--chat-bg-pattern);
+  position: relative;
+}
+
+/* Add subtle pattern overlay for group chats */
+.chat-background-group::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  pointer-events: none;
+}
+
+/* ==================== Animations ==================== */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* ==================== Accessibility ==================== */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ==================== Responsive ==================== */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+}
+
+/* ==================== Focus States (Accessibility) ==================== */
+*:focus-visible {
+  outline: 2px solid var(--text-link);
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--text-link);
+  outline-offset: 2px;
+}

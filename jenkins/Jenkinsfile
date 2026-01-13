@@ -1,0 +1,82 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_IMAGE = 'dailyfix-ai-messaging-hub'
+        DOCKER_TAG = "${env.BUILD_NUMBER}"
+        K8S_NAMESPACE = 'matrix'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/your-org/dailyfix-ai-messaging-hub.git'
+            }
+        }
+        
+        stage('Security Scan') {
+            parallel {
+                stage('OWASP Dependency Check') {
+                    steps {
+                        sh 'echo "Running OWASP dependency check..."'
+                        // Actual implementation would use OWASP dependency check
+                    }
+                }
+                stage('Trivy Scan') {
+                    steps {
+                        sh 'echo "Running Trivy container scan..."'
+                        // Actual implementation would use Trivy
+                    }
+                }
+                stage('Snyk Scan') {
+                    steps {
+                        sh 'echo "Running Snyk vulnerability scan..."'
+                        // Actual implementation would use Snyk
+                    }
+                }
+            }
+        }
+        
+        stage('Build') {
+            steps {
+                sh 'echo "Building application..."'
+                sh 'npm install'
+                sh 'npm run build'
+            }
+        }
+        
+        stage('Dockerize') {
+            steps {
+                script {
+                    docker.build("${env.DOCKER_IMAGE}:${env.DOCKER_TAG}")
+                }
+            }
+        }
+        
+        stage('Test') {
+            steps {
+                sh 'echo "Running tests..."'
+                sh 'npm test'
+            }
+        }
+        
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh 'echo "Deploying to Kubernetes..."'
+                sh 'kubectl apply -f k8s/deployment.yaml'
+            }
+        }
+    }
+    
+    post {
+        always {
+            sh 'echo "Pipeline completed"'
+        }
+        success {
+            sh 'echo "Deployment successful!"'
+        }
+        failure {
+            sh 'echo "Pipeline failed!"'
+        }
+    }
+}

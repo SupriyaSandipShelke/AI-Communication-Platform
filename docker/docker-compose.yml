@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  # Matrix Synapse Server
+  synapse:
+    image: matrixdotorg/synapse:latest
+    container_name: matrix-synapse
+    restart: unless-stopped
+    ports:
+      - "8008:8008"
+      - "8448:8448"
+    volumes:
+      - ./data/synapse:/data
+    environment:
+      - SYNAPSE_SERVER_NAME=${MATRIX_DOMAIN}
+      - SYNAPSE_REPORT_STATS=yes
+    networks:
+      - matrix_network
+    depends_on:
+      - postgres
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:13-alpine
+    container_name: matrix-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=synapse_user
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=synapse
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - matrix_network
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: matrix-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf:/etc/nginx/conf.d
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    networks:
+      - matrix_network
+    depends_on:
+      - synapse
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+
+  # Certbot for SSL
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+  # WhatsApp Bridge
+  whatsapp-bridge:
+    image: dock.mau.dev/mautrix/whatsapp:latest
+    container_name: whatsapp-bridge
+    restart: unless-stopped
+    volumes:
+      - ./data/whatsapp:/data
+    environment:
+      - TZ=UTC
+    networks:
+      - matrix_network
+    depends_on:
+      - synapse
+
+networks:
+  matrix_network:
+    driver: bridge
