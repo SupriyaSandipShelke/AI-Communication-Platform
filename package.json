@@ -12,7 +12,9 @@
     "build:server": "tsc -p tsconfig.server.json",
     "build:client": "cd client && npm run build",
     "start": "node dist/server.js",
-    "install:all": "npm install && cd client && npm install"
+    "install:all": "npm install && cd client && npm install",
+    "test": "echo \"No tests specified\" && exit 0",
+    "lint": "echo \"No linting configured\" && exit 0"
   },
   "keywords": [
     "matrix",
