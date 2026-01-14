@@ -1,0 +1,61 @@
+name: Final Fix January 14 2026
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  final-typescript-check:
+    name: Final TypeScript Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Latest Code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.sha }}
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install Dependencies
+      run: |
+        echo "Installing dependencies..."
+        npm ci
+        
+    - name: TypeScript Compilation Check
+      run: |
+        echo "Running TypeScript compilation check..."
+        echo "Current commit: ${{ github.sha }}"
+        echo "TypeScript version:"
+        npx tsc --version
+        echo "Running compilation check:"
+        npx tsc --noEmit -p tsconfig.server.json
+        echo "TypeScript compilation successful!"
+        
+    - name: Server Build
+      run: |
+        echo "Building server..."
+        npm run build:server
+        echo "Server build successful!"
+        
+    - name: Client Build
+      run: |
+        echo "Installing client dependencies..."
+        cd client
+        npm ci
+        echo "Building client..."
+        npm run build
+        echo "Client build successful!"
+        
+    - name: Final Success
+      run: |
+        echo "🎉 ALL CHECKS PASSED SUCCESSFULLY! 🎉"
+        echo "✅ TypeScript Compilation: PASSED"
+        echo "✅ Server Build: PASSED"
+        echo "✅ Client Build: PASSED"
+        echo "Commit: ${{ github.sha }}"
+        echo "Date: $(date)"

@@ -1,8 +1,9 @@
-name: Simple Check
+name: Simple Check (DISABLED)
+
+# DISABLED - Use final-fix-jan14-2026.yml instead
 
 on:
-  push:
-    branches: [ main ]
+  workflow_dispatch: # Only manual trigger
 
 jobs:
   check:
