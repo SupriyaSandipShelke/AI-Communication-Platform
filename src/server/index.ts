@@ -122,38 +122,39 @@ wss.on('connection', (ws) => {
       
       switch (message.type) {
         case 'authenticate':
-          userId = message.userId;
-          if (!userId) {
+          userId = message.userId as string;
+          if (!userId || typeof userId !== 'string') {
             ws.send(JSON.stringify({ type: 'error', message: 'Invalid user ID' }));
             break;
           }
           
-          connectedUsers.set(userId, ws);
+          const authenticatedUserId: string = userId;
+          connectedUsers.set(authenticatedUserId, ws);
           
           // Store userId on the WebSocket connection for easy access
-          (ws as any).userId = userId;
+          (ws as any).userId = authenticatedUserId;
           
           // Get user's chats (including groups) and subscribe to them
           try {
-            const userChats = await dbService.getChats(userId);
+            const userChats = await dbService.getChats(authenticatedUserId);
             const roomIds = userChats.map(chat => chat.id);
-            userRooms.set(userId, new Set(roomIds));
+            userRooms.set(authenticatedUserId, new Set(roomIds));
           } catch (error) {
             console.error('Failed to load user chats:', error);
-            userRooms.set(userId, new Set(message.rooms || []));
+            userRooms.set(authenticatedUserId, new Set(message.rooms || []));
           }
           
           // Register with WebRTC signaling service
-          webrtcSignaling.setUserConnection(userId, ws);
+          webrtcSignaling.setUserConnection(authenticatedUserId, ws);
           
           // Broadcast user online status
-          broadcastToRooms(userId, {
+          broadcastToRooms(authenticatedUserId, {
             type: 'user_online',
-            userId,
+            userId: authenticatedUserId,
             timestamp: new Date()
           });
           
-          ws.send(JSON.stringify({ type: 'authenticated', userId }));
+          ws.send(JSON.stringify({ type: 'authenticated', userId: authenticatedUserId }));
           break;
 
         case 'send_message':
