@@ -1,0 +1,288 @@
+/* Mobile-Responsive Styles for CommHub */
+
+/* Base mobile styles */
+@media (max-width: 768px) {
+  /* Prevent text selection on mobile */
+  * {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+
+  /* Full height on mobile */
+  html, body, #root {
+    height: 100%;
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+  }
+
+  /* Messages page mobile layout */
+  .messages-container {
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height for mobile browsers */
+  }
+
+  /* Sidebar - full width on mobile when no chat selected */
+  .messages-sidebar {
+    width: 100% !important;
+    border-right: none !important;
+    transition: transform 0.3s ease;
+  }
+
+  /* Hide sidebar when chat is selected */
+  .messages-sidebar.chat-selected {
+    transform: translateX(-100%);
+    position: absolute;
+    z-index: 1;
+  }
+
+  /* Chat area - full width on mobile */
+  .chat-area {
+    width: 100% !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+  }
+
+  .chat-area.active {
+    transform: translateX(0);
+  }
+
+  /* Back button for mobile */
+  .mobile-back-button {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    margin-right: 8px;
+  }
+
+  /* Hide back button on desktop */
+  @media (min-width: 769px) {
+    .mobile-back-button {
+      display: none !important;
+    }
+  }
+
+  /* Adjust header padding on mobile */
+  .chat-header {
+    padding: 12px 16px !important;
+  }
+
+  /* Messages list - adjust for mobile keyboard */
+  .messages-list {
+    padding: 12px !important;
+    padding-bottom: 80px !important; /* Space for input */
+  }
+
+  /* Message bubbles - better mobile sizing */
+  .message-bubble {
+    max-width: 85% !important;
+    font-size: 15px !important;
+    padding: 10px 14px !important;
+  }
+
+  /* Message input - fixed at bottom */
+  .message-input-container {
+    position: fixed !important;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 12px !important;
+    background: var(--bg-primary);
+    border-top: 1px solid var(--border-medium);
+    z-index: 100;
+  }
+
+  /* Input field - larger touch target */
+  .message-input {
+    font-size: 16px !important; /* Prevents zoom on iOS */
+    padding: 12px 16px !important;
+    min-height: 44px !important; /* iOS recommended touch target */
+  }
+
+  /* Buttons - larger touch targets */
+  button, .button {
+    min-height: 44px !important;
+    min-width: 44px !important;
+    padding: 12px !important;
+  }
+
+  /* Conversation list items - larger touch targets */
+  .conversation-item {
+    padding: 16px !important;
+    min-height: 72px !important;
+  }
+
+  /* Avatar sizes */
+  .avatar {
+    width: 48px !important;
+    height: 48px !important;
+  }
+
+  /* Modal adjustments for mobile */
+  .modal {
+    width: 95% !important;
+    max-width: 95% !important;
+    margin: 10px !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+  }
+
+  /* Group info panel - full screen on mobile */
+  .group-info-panel {
+    width: 100% !important;
+    height: 100% !important;
+    position: fixed !important;
+    top: 0 !important;
+    right: 0 !important;
+    z-index: 1000 !important;
+  }
+
+  /* Emoji picker - adjust for mobile */
+  .emoji-picker {
+    bottom: 70px !important;
+    right: 10px !important;
+    max-width: 90vw !important;
+  }
+
+  /* Options menu - better mobile positioning */
+  .options-menu {
+    position: fixed !important;
+    top: auto !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    border-radius: 16px 16px 0 0 !important;
+    max-height: 70vh !important;
+    overflow-y: auto !important;
+  }
+
+  /* Search bar - full width on mobile */
+  .search-bar {
+    width: 100% !important;
+  }
+
+  /* Hide scrollbars on mobile for cleaner look */
+  .messages-list::-webkit-scrollbar,
+  .conversation-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Landscape mode adjustments */
+  @media (orientation: landscape) {
+    .messages-list {
+      padding-bottom: 70px !important;
+    }
+    
+    .message-input-container {
+      padding: 8px !important;
+    }
+  }
+}
+
+/* Tablet styles */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .messages-sidebar {
+    width: 320px !important;
+  }
+
+  .message-bubble {
+    max-width: 70% !important;
+  }
+}
+
+/* Touch-friendly improvements for all devices */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Smooth scrolling */
+.smooth-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Pull to refresh indicator */
+.pull-to-refresh {
+  position: absolute;
+  top: -60px;
+  left: 0;
+  right: 0;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: transform 0.3s ease;
+}
+
+.pull-to-refresh.active {
+  transform: translateY(60px);
+}
+
+/* Loading spinner for mobile */
+.mobile-loading {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9999;
+}
+
+/* Safe area insets for notched devices */
+@supports (padding: env(safe-area-inset-top)) {
+  .chat-header {
+    padding-top: calc(12px + env(safe-area-inset-top)) !important;
+  }
+
+  .message-input-container {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .messages-sidebar {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* Dark mode adjustments for mobile */
+@media (prefers-color-scheme: dark) {
+  .mobile-back-button {
+    color: #fff;
+  }
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .message-bubble {
+    border: 2px solid currentColor;
+  }
+  
+  button {
+    border: 2px solid currentColor;
+  }
+}

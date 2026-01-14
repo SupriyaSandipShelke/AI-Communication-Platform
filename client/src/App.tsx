@@ -7,6 +7,7 @@ import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import PriorityInbox from './pages/PriorityInbox';
 import Groups from './pages/Groups';
+import InstallPrompt from './components/InstallPrompt';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -66,90 +67,93 @@ function App() {
   }
 
   return (
-    <Router>
-      <Routes>
-        <Route
-          path="/login"
-          element={
-            isAuthenticated ? (
-              <Navigate to="/dashboard" replace />
-            ) : (
-              <Login onLogin={() => setIsAuthenticated(true)} />
-            )
-          }
-        />
-        <Route
-          path="/dashboard"
-          element={
-            isAuthenticated ? (
-              <Dashboard />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
-        <Route
-          path="/messages"
-          element={
-            isAuthenticated ? (
-              <Messages />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
-        <Route
-          path="/analytics"
-          element={
-            isAuthenticated ? (
-              <Analytics />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            isAuthenticated ? (
-              <Settings />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
-        <Route
-          path="/priority-inbox"
-          element={
-            isAuthenticated ? (
-              <PriorityInbox />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
-        <Route
-          path="/groups"
-          element={
-            isAuthenticated ? (
-              <Groups />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          }
-        />
-        <Route 
-          path="/" 
-          element={
-            isAuthenticated ? (
-              <Navigate to="/dashboard" replace />
-            ) : (
-              <Navigate to="/login" replace />
-            )
-          } 
-        />
-      </Routes>
-    </Router>
+    <>
+      <Router>
+        <Routes>
+          <Route
+            path="/login"
+            element={
+              isAuthenticated ? (
+                <Navigate to="/dashboard" replace />
+              ) : (
+                <Login onLogin={() => setIsAuthenticated(true)} />
+              )
+            }
+          />
+          <Route
+            path="/dashboard"
+            element={
+              isAuthenticated ? (
+                <Dashboard />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+          <Route
+            path="/messages"
+            element={
+              isAuthenticated ? (
+                <Messages />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+          <Route
+            path="/analytics"
+            element={
+              isAuthenticated ? (
+                <Analytics />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              isAuthenticated ? (
+                <Settings />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+          <Route
+            path="/priority-inbox"
+            element={
+              isAuthenticated ? (
+                <PriorityInbox />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+          <Route
+            path="/groups"
+            element={
+              isAuthenticated ? (
+                <Groups />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            }
+          />
+          <Route 
+            path="/" 
+            element={
+              isAuthenticated ? (
+                <Navigate to="/dashboard" replace />
+              ) : (
+                <Navigate to="/login" replace />
+              )
+            } 
+          />
+        </Routes>
+      </Router>
+      {isAuthenticated && <InstallPrompt />}
+    </>
   );
 }
 
