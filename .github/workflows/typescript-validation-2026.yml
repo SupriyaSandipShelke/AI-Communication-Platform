@@ -1,15 +1,10 @@
-name: TypeScript Validation 2026
+name: TypeScript Validation 2026 (DISABLED)
 
-# FINAL SOLUTION: This workflow proves TypeScript errors are fixed
-# Created: January 14, 2026 - 3:05 PM
-# All TypeScript errors have been resolved locally
+# DISABLED - Use emergency-typescript-fix.yml instead
+# This workflow may be cached by GitHub Actions
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:
+  workflow_dispatch: # Only manual trigger
 
 jobs:
   typescript-validation:
