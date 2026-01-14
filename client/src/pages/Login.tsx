@@ -14,6 +14,35 @@ export default function Login({ onLogin }: LoginProps) {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  const handleDemoLogin = async (demoUsername: string) => {
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/auth/demo-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: demoUsername }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        localStorage.setItem('auth_token', data.token);
+        localStorage.setItem('username', data.username);
+        localStorage.setItem('user_id', data.userId);
+        onLogin();
+        navigate('/dashboard');
+      } else {
+        setError(data.error || 'Demo login failed');
+      }
+    } catch (err) {
+      setError('Connection error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -190,11 +219,115 @@ export default function Login({ onLogin }: LoginProps) {
                 color: '#667eea',
                 fontSize: '14px',
                 cursor: 'pointer',
-                textDecoration: 'underline'
+                textDecoration: 'underline',
+                marginBottom: '24px'
               }}
             >
               {isRegister ? 'Already have an account? Sign in' : 'Need an account? Register'}
             </button>
+          </div>
+
+          {/* Demo Login Section */}
+          <div style={{
+            borderTop: '1px solid #e5e7eb',
+            paddingTop: '24px',
+            marginTop: '24px'
+          }}>
+            <h3 style={{
+              fontSize: '16px',
+              fontWeight: '600',
+              color: '#374151',
+              textAlign: 'center',
+              marginBottom: '16px'
+            }}>
+              Try Demo (No Password Required)
+            </h3>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: '8px'
+            }}>
+              <button
+                type="button"
+                onClick={() => handleDemoLogin('john_doe')}
+                disabled={loading}
+                style={{
+                  padding: '10px 12px',
+                  background: '#f3f4f6',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = '#e5e7eb')}
+                onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#f3f4f6')}
+              >
+                John Doe
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDemoLogin('jane_smith')}
+                disabled={loading}
+                style={{
+                  padding: '10px 12px',
+                  background: '#f3f4f6',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = '#e5e7eb')}
+                onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#f3f4f6')}
+              >
+                Jane Smith
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDemoLogin('mike_wilson')}
+                disabled={loading}
+                style={{
+                  padding: '10px 12px',
+                  background: '#f3f4f6',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = '#e5e7eb')}
+                onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#f3f4f6')}
+              >
+                Mike Wilson
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDemoLogin('sarah_jones')}
+                disabled={loading}
+                style={{
+                  padding: '10px 12px',
+                  background: '#f3f4f6',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = '#e5e7eb')}
+                onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#f3f4f6')}
+              >
+                Sarah Jones
+              </button>
+            </div>
+            <p style={{
+              fontSize: '12px',
+              color: '#6b7280',
+              textAlign: 'center',
+              marginTop: '12px'
+            }}>
+              Click any demo user to instantly access the platform with sample data
+            </p>
           </div>
         </form>
       </div>

@@ -44,6 +44,37 @@ authRouter.post('/register', async (req, res) => {
   }
 });
 
+// Demo login (for development/demo purposes)
+authRouter.post('/demo-login', async (req, res) => {
+  try {
+    const { username } = req.body;
+
+    if (!username) {
+      return res.status(400).json({ success: false, error: 'Username required' });
+    }
+
+    const dbService = req.app.locals.dbService;
+    
+    // Check if user exists in demo data
+    const user = await dbService.getUserByUsername(username);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'Demo user not found. Available users: john_doe, jane_smith, mike_wilson, sarah_jones' });
+    }
+
+    const token = jwt.sign({ id: user.id, username: user.username }, process.env.JWT_SECRET || 'secret', { expiresIn: '7d' });
+
+    res.json({ 
+      success: true, 
+      token, 
+      username: user.username, 
+      userId: user.id,
+      message: 'Demo login successful!'
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Login
 authRouter.post('/login', async (req, res) => {
   try {
