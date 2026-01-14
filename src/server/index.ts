@@ -163,14 +163,14 @@ wss.on('connection', (ws) => {
             break;
           }
           
-          const authenticatedUserId = userId; // Capture for type safety
+          const sendMessageUserId = userId; // Capture for type safety
           let actualRoomId = message.roomId;
           
           // Handle individual user chats
           if (message.roomId.startsWith('user_')) {
             const contactId = message.roomId.replace('user_', '');
             try {
-              actualRoomId = await dbService.getOrCreateIndividualChat(message.sender || authenticatedUserId, contactId);
+              actualRoomId = await dbService.getOrCreateIndividualChat(message.sender || sendMessageUserId, contactId);
             } catch (error) {
               console.error('Failed to create individual chat:', error);
               ws.send(JSON.stringify({ type: 'error', message: 'Failed to create chat' }));
@@ -181,17 +181,17 @@ wss.on('connection', (ws) => {
           const messageId = await dbService.saveMessage({
             platform: 'websocket',
             roomId: actualRoomId,
-            sender: message.sender || authenticatedUserId,
+            sender: message.sender || sendMessageUserId,
             content: message.content,
             timestamp: new Date(),
-            userId: message.sender || authenticatedUserId
+            userId: message.sender || sendMessageUserId
           });
 
           // Set message status as sent
-          await dbService.setMessageStatus(messageId, message.sender || authenticatedUserId, 'sent');
+          await dbService.setMessageStatus(messageId, message.sender || sendMessageUserId, 'sent');
 
           // Get sender information
-          const senderInfo = await dbService.getUserById(message.sender || authenticatedUserId);
+          const senderInfo = await dbService.getUserById(message.sender || sendMessageUserId);
           
           // Broadcast message to room participants
           const messageData = {
@@ -200,7 +200,7 @@ wss.on('connection', (ws) => {
             message: {
               id: messageId,
               roomId: actualRoomId,
-              sender: message.sender || authenticatedUserId,
+              sender: message.sender || sendMessageUserId,
               senderName: senderInfo?.username || message.senderName || 'Unknown',
               content: message.content,
               timestamp: new Date(),
@@ -237,7 +237,7 @@ wss.on('connection', (ws) => {
                     ...messageData,
                     message: {
                       ...messageData.message,
-                      isOwn: member.user_id === (message.sender || authenticatedUserId)
+                      isOwn: member.user_id === (message.sender || sendMessageUserId)
                     }
                   };
                   memberWs.send(JSON.stringify(personalizedMessage));
@@ -251,7 +251,7 @@ wss.on('connection', (ws) => {
           } else {
             // For individual chats, broadcast to both participants
             try {
-              const chat = await dbService.getChat(actualRoomId, message.sender || authenticatedUserId);
+              const chat = await dbService.getChat(actualRoomId, message.sender || sendMessageUserId);
               if (chat) {
                 const participants = [chat.user_id, chat.contact_id];
                 participants.forEach(participantId => {
@@ -261,7 +261,7 @@ wss.on('connection', (ws) => {
                       ...messageData,
                       message: {
                         ...messageData.message,
-                        isOwn: participantId === (message.sender || authenticatedUserId)
+                        isOwn: participantId === (message.sender || sendMessageUserId)
                       }
                     };
                     participantWs.send(JSON.stringify(personalizedMessage));
@@ -276,7 +276,7 @@ wss.on('connection', (ws) => {
           
           // Mark as delivered for online users after a short delay
           setTimeout(async () => {
-            await dbService.setMessageStatus(messageId, message.sender || authenticatedUserId, 'delivered');
+            await dbService.setMessageStatus(messageId, message.sender || sendMessageUserId, 'delivered');
             
             const deliveryUpdate = {
               type: 'message_status',
