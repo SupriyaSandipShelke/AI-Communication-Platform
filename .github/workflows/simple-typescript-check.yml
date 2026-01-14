@@ -1,0 +1,47 @@
+name: Simple TypeScript Check - Jan 14 2026
+
+# Simple, robust TypeScript verification workflow
+# Focuses only on essential TypeScript compilation check
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  typescript-check:
+    name: TypeScript Compilation Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install Dependencies
+      run: npm ci
+        
+    - name: TypeScript Compilation Check
+      run: |
+        echo "🔍 Running TypeScript compilation check..."
+        npx tsc --noEmit -p tsconfig.server.json
+        echo "✅ TypeScript compilation successful!"
+        
+    - name: Build Server
+      run: |
+        echo "🏗️ Building server..."
+        npm run build:server
+        echo "✅ Server build successful!"
+        
+    - name: Success Report
+      run: |
+        echo ""
+        echo "🎉 SUCCESS: All TypeScript checks passed! 🎉"
+        echo "✅ TypeScript compilation: NO ERRORS"
+        echo "✅ Server build: SUCCESS"
+        echo ""
+        echo "The TypeScript errors are RESOLVED!"

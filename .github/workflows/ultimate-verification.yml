@@ -49,7 +49,7 @@ jobs:
       run: |
         echo "🧹 CLEAN INSTALL - NO CACHE 🧹"
         rm -rf node_modules package-lock.json
-        npm install --no-cache --prefer-offline=false
+        npm install --prefer-offline=false
         echo "Fresh installation complete"
         
     - name: Verify Installation
