@@ -499,7 +499,7 @@ whatsappFeaturesRouter.get('/groups/available', async (req, res) => {
     }
 
     // Get all groups that exist
-    const allGroups = await new Promise((resolve, reject) => {
+    const groupsResult = await new Promise((resolve, reject) => {
       dbService.db.all(
         `SELECT c.*, 
                 COUNT(cp.user_id) as member_count,
@@ -515,13 +515,14 @@ whatsappFeaturesRouter.get('/groups/available', async (req, res) => {
          GROUP BY c.id
          ORDER BY c.updated_at DESC`,
         [userId],
-        (err, result) => {
+        (err: Error | null, result: any) => {
           if (err) reject(err);
           else resolve(result);
         }
       );
     });
 
+    const allGroups = groupsResult as any[];
     res.json({
       success: true,
       groups: allGroups,
@@ -554,7 +555,7 @@ whatsappFeaturesRouter.get('/groups/:groupId/members', async (req, res) => {
       dbService.db.get(
         'SELECT * FROM chat_participants WHERE chat_id = ? AND user_id = ?',
         [groupId, userId],
-        (err, result) => {
+        (err: Error | null, result: any) => {
           if (err) reject(err);
           else resolve(result);
         }
@@ -566,7 +567,7 @@ whatsappFeaturesRouter.get('/groups/:groupId/members', async (req, res) => {
     }
 
     // Get group members
-    const members = await new Promise((resolve, reject) => {
+    const membersResult = await new Promise((resolve, reject) => {
       dbService.db.all(
         `SELECT cp.user_id, cp.role, cp.joined_at, u.username, u.created_at as user_created_at
          FROM chat_participants cp
@@ -574,13 +575,14 @@ whatsappFeaturesRouter.get('/groups/:groupId/members', async (req, res) => {
          WHERE cp.chat_id = ?
          ORDER BY cp.role DESC, cp.joined_at ASC`,
         [groupId],
-        (err, result) => {
+        (err: Error | null, result: any) => {
           if (err) reject(err);
           else resolve(result);
         }
       );
     });
 
+    const members = membersResult as any[];
     res.json({
       success: true,
       members,
@@ -616,7 +618,7 @@ whatsappFeaturesRouter.post('/groups/:groupId/join', async (req, res) => {
         dbService.db.get(
           'SELECT * FROM chats WHERE id = ? AND is_group = 1',
           [groupId],
-          (err, result) => {
+          (err: Error | null, result: any) => {
             if (err) reject(err);
             else resolve(result);
           }
@@ -633,7 +635,7 @@ whatsappFeaturesRouter.post('/groups/:groupId/join', async (req, res) => {
       dbService.db.get(
         'SELECT * FROM chat_participants WHERE chat_id = ? AND user_id = ?',
         [groupId, userId],
-        (err, result) => {
+        (err: Error | null, result: any) => {
           if (err) reject(err);
           else resolve(result);
         }
@@ -651,7 +653,7 @@ whatsappFeaturesRouter.post('/groups/:groupId/join', async (req, res) => {
       dbService.db.run(
         'INSERT INTO chat_participants (id, chat_id, user_id, role, joined_at) VALUES (?, ?, ?, ?, ?)',
         [participantId, groupId, userId, 'member', new Date().toISOString()],
-        (err) => {
+        (err: Error | null) => {
           if (err) reject(err);
           else resolve(undefined);
         }
@@ -934,7 +936,7 @@ whatsappFeaturesRouter.get('/chat/:chatId/export', async (req, res) => {
     exportData += `Total messages: ${messages.length}\n\n`;
     exportData += '--- Messages ---\n\n';
     
-    messages.forEach(msg => {
+    messages.forEach((msg: any) => {
       const timestamp = new Date(msg.timestamp).toLocaleString();
       exportData += `[${timestamp}] ${msg.sender}: ${msg.content}\n`;
     });

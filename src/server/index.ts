@@ -108,13 +108,13 @@ app.get('/api/health', (req, res) => {
 });
 
 // Enhanced WebSocket connection handling with full WhatsApp features
-const connectedUsers = new Map(); // userId -> WebSocket connection
-const userRooms = new Map(); // userId -> Set of roomIds
-const typingUsers = new Map(); // roomId -> Set of userIds
+const connectedUsers = new Map<string, any>(); // userId -> WebSocket connection
+const userRooms = new Map<string, Set<string>>(); // userId -> Set of roomIds
+const typingUsers = new Map<string, Set<string>>(); // roomId -> Set of userIds
 
 wss.on('connection', (ws) => {
   console.log('New WebSocket client connected');
-  let userId = null;
+  let userId: string | null = null;
 
   ws.on('message', async (data) => {
     try {
@@ -123,6 +123,11 @@ wss.on('connection', (ws) => {
       switch (message.type) {
         case 'authenticate':
           userId = message.userId;
+          if (!userId) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Invalid user ID' }));
+            break;
+          }
+          
           connectedUsers.set(userId, ws);
           
           // Store userId on the WebSocket connection for easy access
@@ -152,13 +157,19 @@ wss.on('connection', (ws) => {
           break;
 
         case 'send_message':
+          if (!userId) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
+            break;
+          }
+          
+          const authenticatedUserId = userId; // Capture for type safety
           let actualRoomId = message.roomId;
           
           // Handle individual user chats
           if (message.roomId.startsWith('user_')) {
             const contactId = message.roomId.replace('user_', '');
             try {
-              actualRoomId = await dbService.getOrCreateIndividualChat(message.sender || userId, contactId);
+              actualRoomId = await dbService.getOrCreateIndividualChat(message.sender || authenticatedUserId, contactId);
             } catch (error) {
               console.error('Failed to create individual chat:', error);
               ws.send(JSON.stringify({ type: 'error', message: 'Failed to create chat' }));
@@ -169,17 +180,17 @@ wss.on('connection', (ws) => {
           const messageId = await dbService.saveMessage({
             platform: 'websocket',
             roomId: actualRoomId,
-            sender: message.sender || userId,
+            sender: message.sender || authenticatedUserId,
             content: message.content,
             timestamp: new Date(),
-            userId: message.sender || userId
+            userId: message.sender || authenticatedUserId
           });
 
           // Set message status as sent
-          await dbService.setMessageStatus(messageId, message.sender || userId, 'sent');
+          await dbService.setMessageStatus(messageId, message.sender || authenticatedUserId, 'sent');
 
           // Get sender information
-          const senderInfo = await dbService.getUserById(message.sender || userId);
+          const senderInfo = await dbService.getUserById(message.sender || authenticatedUserId);
           
           // Broadcast message to room participants
           const messageData = {
@@ -188,7 +199,7 @@ wss.on('connection', (ws) => {
             message: {
               id: messageId,
               roomId: actualRoomId,
-              sender: message.sender || userId,
+              sender: message.sender || authenticatedUserId,
               senderName: senderInfo?.username || message.senderName || 'Unknown',
               content: message.content,
               timestamp: new Date(),
@@ -201,11 +212,15 @@ wss.on('connection', (ws) => {
           // For group messages, broadcast to all group members
           if (message.isGroup) {
             try {
-              const groupMembers = await new Promise((resolve, reject) => {
+              const groupMembers = await new Promise<Array<{ user_id: string }>>((resolve, reject) => {
+                if (!dbService.db) {
+                  reject(new Error('Database not initialized'));
+                  return;
+                }
                 dbService.db.all(
                   'SELECT user_id FROM chat_participants WHERE chat_id = ?',
                   [actualRoomId],
-                  (err, result) => {
+                  (err, result: Array<{ user_id: string }>) => {
                     if (err) reject(err);
                     else resolve(result);
                   }
@@ -213,7 +228,7 @@ wss.on('connection', (ws) => {
               });
 
               // Broadcast to all group members
-              groupMembers.forEach((member: any) => {
+              groupMembers.forEach((member) => {
                 const memberWs = connectedUsers.get(member.user_id);
                 if (memberWs && memberWs.readyState === 1) {
                   // Set isOwn flag correctly for each recipient
@@ -221,7 +236,7 @@ wss.on('connection', (ws) => {
                     ...messageData,
                     message: {
                       ...messageData.message,
-                      isOwn: member.user_id === (message.sender || userId)
+                      isOwn: member.user_id === (message.sender || authenticatedUserId)
                     }
                   };
                   memberWs.send(JSON.stringify(personalizedMessage));
@@ -235,7 +250,7 @@ wss.on('connection', (ws) => {
           } else {
             // For individual chats, broadcast to both participants
             try {
-              const chat = await dbService.getChat(actualRoomId, message.sender || userId);
+              const chat = await dbService.getChat(actualRoomId, message.sender || authenticatedUserId);
               if (chat) {
                 const participants = [chat.user_id, chat.contact_id];
                 participants.forEach(participantId => {
@@ -245,7 +260,7 @@ wss.on('connection', (ws) => {
                       ...messageData,
                       message: {
                         ...messageData.message,
-                        isOwn: participantId === (message.sender || userId)
+                        isOwn: participantId === (message.sender || authenticatedUserId)
                       }
                     };
                     participantWs.send(JSON.stringify(personalizedMessage));
@@ -260,7 +275,7 @@ wss.on('connection', (ws) => {
           
           // Mark as delivered for online users after a short delay
           setTimeout(async () => {
-            await dbService.setMessageStatus(messageId, message.sender || userId, 'delivered');
+            await dbService.setMessageStatus(messageId, message.sender || authenticatedUserId, 'delivered');
             
             const deliveryUpdate = {
               type: 'message_status',
@@ -271,18 +286,22 @@ wss.on('connection', (ws) => {
             if (message.isGroup) {
               // Broadcast delivery status to group members
               try {
-                const groupMembers = await new Promise((resolve, reject) => {
+                const groupMembers = await new Promise<Array<{ user_id: string }>>((resolve, reject) => {
+                  if (!dbService.db) {
+                    reject(new Error('Database not initialized'));
+                    return;
+                  }
                   dbService.db.all(
                     'SELECT user_id FROM chat_participants WHERE chat_id = ?',
                     [actualRoomId],
-                    (err, result) => {
+                    (err, result: Array<{ user_id: string }>) => {
                       if (err) reject(err);
                       else resolve(result);
                     }
                   );
                 });
 
-                groupMembers.forEach((member: any) => {
+                groupMembers.forEach((member) => {
                   const memberWs = connectedUsers.get(member.user_id);
                   if (memberWs && memberWs.readyState === 1) {
                     memberWs.send(JSON.stringify(deliveryUpdate));
@@ -299,19 +318,30 @@ wss.on('connection', (ws) => {
           break;
 
         case 'typing_start':
+          if (!userId) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
+            break;
+          }
+          
+          const typingStartUserId = userId; // Capture for type safety
+          
           if (!typingUsers.has(message.roomId)) {
             typingUsers.set(message.roomId, new Set());
           }
-          typingUsers.get(message.roomId).add(userId);
+          typingUsers.get(message.roomId)!.add(typingStartUserId);
           
           // For group chats, broadcast to all members except sender
           if (message.isGroup) {
             try {
-              const groupMembers = await new Promise((resolve, reject) => {
+              const groupMembers = await new Promise<Array<{ user_id: string }>>((resolve, reject) => {
+                if (!dbService.db) {
+                  reject(new Error('Database not initialized'));
+                  return;
+                }
                 dbService.db.all(
                   'SELECT user_id FROM chat_participants WHERE chat_id = ?',
                   [message.roomId],
-                  (err, result) => {
+                  (err, result: Array<{ user_id: string }>) => {
                     if (err) reject(err);
                     else resolve(result);
                   }
@@ -321,12 +351,12 @@ wss.on('connection', (ws) => {
               const typingMessage = {
                 type: 'typing_start',
                 roomId: message.roomId,
-                userId,
+                userId: typingStartUserId,
                 timestamp: new Date()
               };
 
-              groupMembers.forEach((member: any) => {
-                if (member.user_id !== userId) {
+              groupMembers.forEach((member) => {
+                if (member.user_id !== typingStartUserId) {
                   const memberWs = connectedUsers.get(member.user_id);
                   if (memberWs && memberWs.readyState === 1) {
                     memberWs.send(JSON.stringify(typingMessage));
@@ -338,33 +368,44 @@ wss.on('connection', (ws) => {
               broadcastToRoom(message.roomId, {
                 type: 'typing_start',
                 roomId: message.roomId,
-                userId,
+                userId: typingStartUserId,
                 timestamp: new Date()
-              }, userId);
+              }, typingStartUserId);
             }
           } else {
             broadcastToRoom(message.roomId, {
               type: 'typing_start',
               roomId: message.roomId,
-              userId,
+              userId: typingStartUserId,
               timestamp: new Date()
-            }, userId);
+            }, typingStartUserId);
           }
           break;
 
         case 'typing_stop':
+          if (!userId) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
+            break;
+          }
+          
+          const typingStopUserId = userId; // Capture for type safety
+          
           if (typingUsers.has(message.roomId)) {
-            typingUsers.get(message.roomId).delete(userId);
+            typingUsers.get(message.roomId)!.delete(typingStopUserId);
           }
           
           // For group chats, broadcast to all members except sender
           if (message.isGroup) {
             try {
-              const groupMembers = await new Promise((resolve, reject) => {
+              const groupMembers = await new Promise<Array<{ user_id: string }>>((resolve, reject) => {
+                if (!dbService.db) {
+                  reject(new Error('Database not initialized'));
+                  return;
+                }
                 dbService.db.all(
                   'SELECT user_id FROM chat_participants WHERE chat_id = ?',
                   [message.roomId],
-                  (err, result) => {
+                  (err, result: Array<{ user_id: string }>) => {
                     if (err) reject(err);
                     else resolve(result);
                   }
@@ -374,12 +415,12 @@ wss.on('connection', (ws) => {
               const typingMessage = {
                 type: 'typing_stop',
                 roomId: message.roomId,
-                userId,
+                userId: typingStopUserId,
                 timestamp: new Date()
               };
 
-              groupMembers.forEach((member: any) => {
-                if (member.user_id !== userId) {
+              groupMembers.forEach((member) => {
+                if (member.user_id !== typingStopUserId) {
                   const memberWs = connectedUsers.get(member.user_id);
                   if (memberWs && memberWs.readyState === 1) {
                     memberWs.send(JSON.stringify(typingMessage));
@@ -391,41 +432,59 @@ wss.on('connection', (ws) => {
               broadcastToRoom(message.roomId, {
                 type: 'typing_stop',
                 roomId: message.roomId,
-                userId,
+                userId: typingStopUserId,
                 timestamp: new Date()
-              }, userId);
+              }, typingStopUserId);
             }
           } else {
             broadcastToRoom(message.roomId, {
               type: 'typing_stop',
               roomId: message.roomId,
-              userId,
+              userId: typingStopUserId,
               timestamp: new Date()
-            }, userId);
+            }, typingStopUserId);
           }
           break;
 
         case 'message_read':
-          await dbService.setMessageStatus(message.messageId, userId, 'read');
+          if (!userId) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
+            break;
+          }
+          
+          const messageReadUserId = userId; // Capture for type safety
+          await dbService.setMessageStatus(message.messageId, messageReadUserId, 'read');
           
           broadcastToRoom(message.roomId, {
             type: 'message_status',
             messageId: message.messageId,
             status: 'read',
-            readBy: userId
+            readBy: messageReadUserId
           });
           break;
 
         case 'join_room':
-          if (!userRooms.has(userId)) {
-            userRooms.set(userId, new Set());
+          if (!userId) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
+            break;
           }
-          userRooms.get(userId).add(message.roomId);
+          
+          const joinRoomUserId = userId; // Capture for type safety
+          if (!userRooms.has(joinRoomUserId)) {
+            userRooms.set(joinRoomUserId, new Set());
+          }
+          userRooms.get(joinRoomUserId)!.add(message.roomId);
           break;
 
         case 'leave_room':
-          if (userRooms.has(userId)) {
-            userRooms.get(userId).delete(message.roomId);
+          if (!userId) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
+            break;
+          }
+          
+          const leaveRoomUserId = userId; // Capture for type safety
+          if (userRooms.has(leaveRoomUserId)) {
+            userRooms.get(leaveRoomUserId)!.delete(message.roomId);
           }
           break;
 
@@ -435,22 +494,20 @@ wss.on('connection', (ws) => {
             break;
           }
           
+          const initiateCallUserId = userId; // Capture for type safety
           const callData = {
             id: `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-            callerId: userId,
+            callerId: initiateCallUserId,
             calleeId: message.calleeId,
-            callType: message.callType || 'audio',
-            status: 'initiated',
-            startTime: new Date(),
-            endTime: null,
-            duration: null
+            callType: (message.callType || 'audio') as 'audio' | 'video',
+            status: 'initiated' as const
           };
 
           await dbService.createCall(callData);
           
           // Use WebRTC signaling service
           try {
-            await webrtcSignaling.initiateCall(callData.id, userId, message.calleeId, message.callType);
+            await webrtcSignaling.initiateCall(callData.id, initiateCallUserId, message.calleeId, message.callType);
           } catch (error) {
             console.error('Failed to initiate WebRTC call:', error);
           }
@@ -462,8 +519,9 @@ wss.on('connection', (ws) => {
             break;
           }
           
+          const acceptCallUserId = userId; // Capture for type safety
           try {
-            await webrtcSignaling.acceptCall(message.callId, userId);
+            await webrtcSignaling.acceptCall(message.callId, acceptCallUserId);
             await dbService.updateCallStatus(message.callId, 'connected');
           } catch (error) {
             console.error('Failed to accept call:', error);
@@ -476,8 +534,9 @@ wss.on('connection', (ws) => {
             break;
           }
           
+          const rejectCallUserId = userId; // Capture for type safety
           try {
-            await webrtcSignaling.rejectCall(message.callId, userId);
+            await webrtcSignaling.rejectCall(message.callId, rejectCallUserId);
             await dbService.updateCallStatus(message.callId, 'rejected');
           } catch (error) {
             console.error('Failed to reject call:', error);
@@ -490,8 +549,9 @@ wss.on('connection', (ws) => {
             break;
           }
           
+          const endCallUserId = userId; // Capture for type safety
           try {
-            const result = await webrtcSignaling.endCall(message.callId, userId);
+            const result = await webrtcSignaling.endCall(message.callId, endCallUserId);
             if (result) {
               await dbService.updateCallStatus(message.callId, 'ended', message.duration || result.duration);
             }
@@ -507,8 +567,9 @@ wss.on('connection', (ws) => {
             break;
           }
           
+          const offerUserId = userId; // Capture for type safety
           try {
-            await webrtcSignaling.handleOffer(message.callId, userId, message.offer);
+            await webrtcSignaling.handleOffer(message.callId, offerUserId, message.offer);
           } catch (error) {
             console.error('Failed to handle WebRTC offer:', error);
           }
@@ -520,8 +581,9 @@ wss.on('connection', (ws) => {
             break;
           }
           
+          const answerUserId = userId; // Capture for type safety
           try {
-            await webrtcSignaling.handleAnswer(message.callId, userId, message.answer);
+            await webrtcSignaling.handleAnswer(message.callId, answerUserId, message.answer);
           } catch (error) {
             console.error('Failed to handle WebRTC answer:', error);
           }
@@ -533,19 +595,26 @@ wss.on('connection', (ws) => {
             break;
           }
           
+          const iceCandidateUserId = userId; // Capture for type safety
           try {
-            await webrtcSignaling.handleIceCandidate(message.callId, userId, message.candidate);
+            await webrtcSignaling.handleIceCandidate(message.callId, iceCandidateUserId, message.candidate);
           } catch (error) {
             console.error('Failed to handle ICE candidate:', error);
           }
           break;
 
         case 'subscribe':
-          // Subscribe to specific channels/rooms
-          if (!userRooms.has(userId)) {
-            userRooms.set(userId, new Set());
+          if (!userId) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
+            break;
           }
-          userRooms.get(userId).add(message.roomId);
+          
+          const subscribeUserId = userId; // Capture for type safety
+          // Subscribe to specific channels/rooms
+          if (!userRooms.has(subscribeUserId)) {
+            userRooms.set(subscribeUserId, new Set());
+          }
+          userRooms.get(subscribeUserId)!.add(message.roomId);
           ws.send(JSON.stringify({ type: 'subscribed', roomId: message.roomId }));
           break;
 
@@ -564,29 +633,30 @@ wss.on('connection', (ws) => {
   
   ws.on('close', () => {
     if (userId) {
-      connectedUsers.delete(userId);
-      userRooms.delete(userId);
+      const disconnectedUserId = userId;
+      connectedUsers.delete(disconnectedUserId);
+      userRooms.delete(disconnectedUserId);
       
       // Remove from WebRTC signaling service
-      webrtcSignaling.removeUserConnection(userId);
+      webrtcSignaling.removeUserConnection(disconnectedUserId);
       
       // Clean up typing indicators
       typingUsers.forEach((users, roomId) => {
-        if (users.has(userId)) {
-          users.delete(userId);
+        if (users.has(disconnectedUserId)) {
+          users.delete(disconnectedUserId);
           broadcastToRoom(roomId, {
             type: 'typing_indicator',
             roomId,
-            userId,
+            userId: disconnectedUserId,
             isTyping: false
           });
         }
       });
 
       // Broadcast user offline status
-      broadcastToRooms(userId, {
+      broadcastToRooms(disconnectedUserId, {
         type: 'user_offline',
-        userId,
+        userId: disconnectedUserId,
         timestamp: new Date()
       });
     }
@@ -595,15 +665,15 @@ wss.on('connection', (ws) => {
 });
 
 // Helper functions for broadcasting
-function broadcastToRoom(roomId, message, excludeUserId = null) {
-  connectedUsers.forEach((ws, userId) => {
+function broadcastToRoom(roomId: string, message: any, excludeUserId: string | null = null) {
+  connectedUsers.forEach((ws, userId: string) => {
     if (userId !== excludeUserId && userRooms.get(userId)?.has(roomId) && ws.readyState === 1) {
       ws.send(JSON.stringify(message));
     }
   });
 }
 
-function broadcastToRooms(userId, message) {
+function broadcastToRooms(userId: string, message: any) {
   const rooms = userRooms.get(userId);
   if (rooms) {
     rooms.forEach(roomId => {
@@ -612,8 +682,8 @@ function broadcastToRooms(userId, message) {
   }
 }
 
-function broadcastToAll(message, excludeUserId = null) {
-  connectedUsers.forEach((ws, userId) => {
+function broadcastToAll(message: any, excludeUserId: string | null = null) {
+  connectedUsers.forEach((ws, userId: string) => {
     if (userId !== excludeUserId && ws.readyState === 1) {
       ws.send(JSON.stringify(message));
     }

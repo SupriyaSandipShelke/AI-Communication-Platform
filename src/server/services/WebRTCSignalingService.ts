@@ -1,5 +1,18 @@
 import { WebSocket } from 'ws';
 
+// WebRTC type definitions for Node.js environment
+interface RTCSessionDescriptionInit {
+  type: 'offer' | 'answer' | 'pranswer' | 'rollback';
+  sdp?: string;
+}
+
+interface RTCIceCandidateInit {
+  candidate?: string;
+  sdpMLineIndex?: number | null;
+  sdpMid?: string | null;
+  usernameFragment?: string | null;
+}
+
 interface CallParticipant {
   userId: string;
   ws: WebSocket;

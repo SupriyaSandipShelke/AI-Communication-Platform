@@ -1175,25 +1175,6 @@ export class DatabaseService {
     return row;
   }
   
-  async getUserCalls(userId: string, limit: number = 50) {
-    if (!this.db) throw new Error('Database not initialized');
-    
-    const rows: any[] = await new Promise((resolve, reject) => {
-      this.db!.all(
-        `SELECT * FROM calls 
-         WHERE caller_id = ? OR callee_id = ?
-         ORDER BY created_at DESC LIMIT ?` ,
-        [userId, userId, limit],
-        (err, result) => {
-          if (err) reject(err);
-          else resolve(result);
-        }
-      );
-    });
-    
-    return rows;
-  }
-  
   async getRecentCalls(userId: string) {
     if (!this.db) throw new Error('Database not initialized');
     
@@ -1727,8 +1708,8 @@ export class DatabaseService {
       // Column might already exist
     }
     
-    const fields = [];
-    const values = [];
+    const fields: string[] = [];
+    const values: any[] = [];
     
     if (updateData.name) {
       fields.push('group_name = ?', 'contact_name = ?');
