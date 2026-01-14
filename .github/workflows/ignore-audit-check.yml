@@ -1,0 +1,27 @@
+name: TypeScript Check - Ignore Audit
+
+on:
+  workflow_dispatch:
+
+jobs:
+  typescript-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install dependencies (ignore audit)
+      run: npm ci --audit=false
+    
+    - name: TypeScript Check
+      run: npx tsc --noEmit -p tsconfig.server.json
+      
+    - name: Build Check  
+      run: npm run build:server
+      
+    - name: Success
+      run: echo "✅ All checks passed successfully!"

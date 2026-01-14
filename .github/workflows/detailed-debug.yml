@@ -1,0 +1,64 @@
+name: Detailed Debug - Find Exact Error
+
+on:
+  workflow_dispatch:
+
+jobs:
+  detailed-debug:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Check package.json and package-lock.json
+      run: |
+        echo "=== package.json exists ==="
+        ls -la package.json
+        echo "=== package-lock.json exists ==="
+        ls -la package-lock.json
+        echo "=== package.json scripts ==="
+        cat package.json | grep -A 10 '"scripts"'
+        
+    - name: Try npm ci with verbose output
+      run: |
+        echo "=== Running npm ci with verbose output ==="
+        npm ci --verbose
+        
+    - name: Check TypeScript installation
+      run: |
+        echo "=== TypeScript version ==="
+        npx tsc --version
+        echo "=== TypeScript config ==="
+        cat tsconfig.server.json
+        
+    - name: Check source files
+      run: |
+        echo "=== Source files exist ==="
+        ls -la src/server/
+        echo "=== Main index.ts file ==="
+        head -20 src/server/index.ts
+        
+    - name: Try TypeScript compilation with detailed output
+      run: |
+        echo "=== TypeScript compilation attempt ==="
+        npx tsc --noEmit -p tsconfig.server.json --listFiles --verbose || echo "TypeScript compilation failed"
+        
+    - name: Try build script
+      run: |
+        echo "=== Build script attempt ==="
+        npm run build:server || echo "Build script failed"
+        
+    - name: Environment info
+      run: |
+        echo "=== Environment Information ==="
+        echo "Node version: $(node --version)"
+        echo "npm version: $(npm --version)"
+        echo "Working directory: $(pwd)"
+        echo "Available memory: $(free -h)"
+        echo "Disk space: $(df -h)"
