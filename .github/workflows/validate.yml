@@ -1,10 +1,10 @@
-name: Code Validation
+name: Code Validation (DISABLED - USE force-clean-run.yml)
+
+# This workflow is disabled - use force-clean-run.yml instead
+# GitHub Actions may be caching this workflow
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch: # Only manual trigger, not on push
 
 jobs:
   validate:
