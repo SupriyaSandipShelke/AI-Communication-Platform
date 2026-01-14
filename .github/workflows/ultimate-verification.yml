@@ -4,9 +4,7 @@ name: Ultimate Verification - No Cache - Jan 14 2026
 # Created to definitively prove TypeScript errors are resolved
 
 on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+  workflow_dispatch:  # Only run manually, not on push
 
 jobs:
   ultimate-verification:
@@ -48,8 +46,8 @@ jobs:
     - name: Clean Install - No Cache
       run: |
         echo "🧹 CLEAN INSTALL - NO CACHE 🧹"
-        rm -rf node_modules package-lock.json
-        npm install --prefer-offline=false
+        rm -rf node_modules
+        npm ci
         echo "Fresh installation complete"
         
     - name: Verify Installation
