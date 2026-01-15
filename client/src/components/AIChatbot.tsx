@@ -333,13 +333,7 @@ export default function AIChatbot({
     }
   };
 
-  // Simple markdown-like formatting for AI responses
-  const formatMessage = (content: string) => {
-    return content
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/\n/g, '<br />');
-  };
+  const quickActions = [
     { label: "📊 Summarize my day", prompt: "Summarize today's communications and activity" },
     { label: "🚨 What needs attention?", prompt: "Show me high priority messages that need my attention" },
     { label: "📋 Recent decisions", prompt: "What decisions were made recently in my conversations?" },
