@@ -32,7 +32,7 @@ export default function AIChatbot({
     {
       id: 'welcome',
       role: 'assistant',
-      content: '👋 **Welcome to your AI Communication Assistant!**\n\nI\'m here to help you manage your communications effectively. I can:\n\n• 📊 **Summarize** your daily activity\n• 🚨 **Identify** high-priority messages\n• 📋 **Track** decisions and commitments\n• 🔍 **Search** through your conversations\n• 📈 **Analyze** communication patterns\n\n**Try asking**: "What needs my attention?" or click a quick action below!',
+      content: '👋 **Welcome to your AI Communication Assistant!**\n\nI\'m here to help you manage your communications effectively. I can:\n\n• 📊 **Summarize** your daily activity\n• 🚨 **Identify** high-priority messages\n• 📋 **Track** decisions and commitments\n• 🔍 **Search** through your conversations\n• 📈 **Analyze** communication patterns\n• 🎤 **Voice Input** - Click the microphone to speak!\n• 🔊 **Voice Output** - I can read responses aloud!\n\n**Try asking**: "What needs my attention?" or click the 🎤 microphone to speak!',
       timestamp: new Date()
     }
   ]);
@@ -41,15 +41,15 @@ export default function AIChatbot({
   const [conversationId, setConversationId] = useState(initialContext.conversationId);
   const [isRecording, setIsRecording] = useState(false);
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
-  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
-  const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const [currentPlayingId, setCurrentPlayingId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
-  const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [recognition, setRecognition] = useState<any>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState<string>('');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const recognitionRef = useRef<any>(null);
 
   // Simple markdown-like formatting for AI responses
   const formatMessage = (content: string) => {
@@ -70,7 +70,76 @@ export default function AIChatbot({
   // Initialize speech recognition and synthesis
   useEffect(() => {
     // Check if browser supports speech recognition
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
+      const recognitionInstance = new SpeechRecognition();
+      
+      recognitionInstance.continuous = false;
+      recognitionInstance.interimResults = false;
+      recognitionInstance.lang = 'en-US';
+      recognitionInstance.maxAlternatives = 1;
+      
+      recognitionInstance.onstart = () => {
+        console.log('Voice recognition started');
+        setIsListening(true);
+        setIsRecording(true);
+        setVoiceStatus('🎤 Listening... Speak clearly!');
+      };
+      
+      recognitionInstance.onresult = async (event) => {
+        const transcript = event.results[0][0].transcript;
+        console.log('Voice input received:', transcript);
+        setInputValue(transcript);
+        setIsListening(false);
+        setIsRecording(false);
+        setVoiceStatus(`✅ Heard: "${transcript}"`);
+        
+        // Clear status after a delay
+        setTimeout(() => setVoiceStatus(''), 3000);
+        
+        // Automatically submit the voice input
+        await handleSubmit(null, transcript);
+      };
+      
+      recognitionInstance.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+        setIsRecording(false);
+        setIsLoading(false);
+        
+        let errorMessage = 'Voice recognition failed. Please try again.';
+        if (event.error === 'no-speech') {
+          errorMessage = 'No speech detected. Please speak clearly and try again.';
+        } else if (event.error === 'audio-capture') {
+          errorMessage = 'Microphone not accessible. Please check permissions.';
+        } else if (event.error === 'not-allowed') {
+          errorMessage = 'Microphone permission denied. Please allow microphone access and refresh the page.';
+        } else if (event.error === 'network') {
+          errorMessage = 'Network error. Please check your internet connection.';
+        }
+        
+        // Show error message as AI response
+        const errorMsg: Message = {
+          id: `error-${Date.now()}`,
+          role: 'assistant',
+          content: `🎤 ${errorMessage}`,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, errorMsg]);
+      };
+      
+      recognitionInstance.onend = () => {
+        console.log('Voice recognition ended');
+        setIsListening(false);
+        setIsRecording(false);
+        if (voiceStatus.includes('Listening')) {
+          setVoiceStatus('');
+        }
+      };
+      
+      setRecognition(recognitionInstance);
+      recognitionRef.current = recognitionInstance;
+    } else {
       console.warn('Speech recognition not supported');
       setIsVoiceEnabled(false);
     }
@@ -78,118 +147,61 @@ export default function AIChatbot({
     // Check if browser supports speech synthesis
     if (!('speechSynthesis' in window)) {
       console.warn('Speech synthesis not supported');
+      setIsVoiceEnabled(false);
     }
+
+    // Cleanup function
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+    };
   }, []);
 
   const startVoiceRecording = async () => {
+    if (!recognition) {
+      alert('Voice recognition is not available in this browser. Please try Chrome, Edge, or Safari.');
+      return;
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      // Request microphone permission first
+      await navigator.mediaDevices.getUserMedia({ audio: true });
       
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          setAudioChunks(prev => [...prev, event.data]);
-        }
-      };
-
-      recorder.onstop = () => {
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      setMediaRecorder(recorder);
-      setAudioChunks([]);
-      recorder.start();
-      setIsRecording(true);
-
-      // Auto-stop recording after 30 seconds
-      recordingTimeoutRef.current = setTimeout(() => {
-        stopVoiceRecording();
-      }, 30000);
-
+      // Stop any ongoing recognition
+      if (isListening) {
+        recognition.stop();
+        return;
+      }
+      
+      // Start voice recognition
+      recognition.start();
+      console.log('Starting voice recognition...');
+      
     } catch (error) {
       console.error('Error starting voice recording:', error);
-      alert('Could not access microphone. Please check permissions.');
+      let errorMessage = 'Could not access microphone. ';
+      
+      if (error.name === 'NotAllowedError') {
+        errorMessage += 'Please allow microphone access and try again.';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage += 'No microphone found. Please connect a microphone.';
+      } else {
+        errorMessage += 'Please check your microphone settings.';
+      }
+      
+      alert(errorMessage);
     }
   };
 
   const stopVoiceRecording = () => {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      mediaRecorder.stop();
-      setIsRecording(false);
-      
-      if (recordingTimeoutRef.current) {
-        clearTimeout(recordingTimeoutRef.current);
-        recordingTimeoutRef.current = null;
-      }
+    if (recognition && isListening) {
+      recognition.stop();
+      console.log('Stopping voice recognition...');
     }
   };
 
-  const processVoiceInput = async (audioBlob: Blob) => {
-    try {
-      setIsLoading(true);
-      
-      // Check if speech recognition is supported
-      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-        alert('Speech recognition is not supported in this browser. Please try Chrome or Edge.');
-        setIsLoading(false);
-        return;
-      }
-      
-      // Convert speech to text using Web Speech API
-      const recognition = new (window.webkitSpeechRecognition || window.SpeechRecognition)();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = 'en-US';
-
-      recognition.onresult = async (event) => {
-        const transcript = event.results[0][0].transcript;
-        setInputValue(transcript);
-        
-        // Automatically submit the voice input
-        await handleSubmit(null, transcript);
-      };
-
-      recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        setIsLoading(false);
-        
-        let errorMessage = 'Speech recognition failed. Please try again.';
-        if (event.error === 'no-speech') {
-          errorMessage = 'No speech detected. Please try speaking again.';
-        } else if (event.error === 'audio-capture') {
-          errorMessage = 'Microphone not accessible. Please check permissions.';
-        } else if (event.error === 'not-allowed') {
-          errorMessage = 'Microphone permission denied. Please allow microphone access.';
-        }
-        
-        alert(errorMessage);
-      };
-
-      recognition.onend = () => {
-        setIsLoading(false);
-      };
-
-      // Create audio URL for playback (optional)
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      
-      // Start recognition
-      recognition.start();
-
-    } catch (error) {
-      console.error('Error processing voice input:', error);
-      setIsLoading(false);
-      alert('Voice processing failed. Please try typing instead.');
-    }
-  };
-
-  useEffect(() => {
-    if (audioChunks.length > 0 && mediaRecorder?.state === 'inactive') {
-      const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-      processVoiceInput(audioBlob);
-      setAudioChunks([]);
-    }
-  }, [audioChunks, mediaRecorder?.state]);
+  // Remove the old processVoiceInput function and audioChunks effect since we're using direct speech recognition
 
   const speakText = (text: string, messageId: string) => {
     if (!('speechSynthesis' in window)) {
@@ -200,12 +212,36 @@ export default function AIChatbot({
     // Stop any current speech
     speechSynthesis.cancel();
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.9;
-    utterance.pitch = 1;
-    utterance.volume = 0.8;
+    // Clean text for better speech (remove markdown and special characters)
+    const cleanText = text
+      .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold markdown
+      .replace(/\*(.*?)\*/g, '$1')     // Remove italic markdown
+      .replace(/#{1,6}\s/g, '')        // Remove headers
+      .replace(/[•·]/g, '')            // Remove bullet points
+      .replace(/\n/g, ' ')             // Replace newlines with spaces
+      .replace(/\s+/g, ' ')            // Normalize whitespace
+      .trim();
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    
+    // Configure voice settings for better quality
+    utterance.rate = 0.85;  // Slightly slower for clarity
+    utterance.pitch = 1.0;  // Normal pitch
+    utterance.volume = 0.9; // High volume
+    
+    // Try to use a more natural voice if available
+    const voices = speechSynthesis.getVoices();
+    const preferredVoice = voices.find(voice => 
+      voice.lang.startsWith('en') && 
+      (voice.name.includes('Google') || voice.name.includes('Microsoft') || voice.name.includes('Natural'))
+    ) || voices.find(voice => voice.lang.startsWith('en')) || voices[0];
+    
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    }
 
     utterance.onstart = () => {
+      console.log('Started speaking:', cleanText.substring(0, 50) + '...');
       setCurrentPlayingId(messageId);
       setMessages(prev => prev.map(msg => 
         msg.id === messageId 
@@ -215,16 +251,25 @@ export default function AIChatbot({
     };
 
     utterance.onend = () => {
+      console.log('Finished speaking');
       setCurrentPlayingId(null);
       setMessages(prev => prev.map(msg => ({ ...msg, isPlaying: false })));
     };
 
-    utterance.onerror = () => {
+    utterance.onerror = (event) => {
+      console.error('Speech synthesis error:', event.error);
       setCurrentPlayingId(null);
       setMessages(prev => prev.map(msg => ({ ...msg, isPlaying: false })));
     };
 
-    speechSynthesis.speak(utterance);
+    // Ensure voices are loaded before speaking
+    if (voices.length === 0) {
+      speechSynthesis.addEventListener('voiceschanged', () => {
+        speechSynthesis.speak(utterance);
+      }, { once: true });
+    } else {
+      speechSynthesis.speak(utterance);
+    }
   };
 
   const stopSpeaking = () => {
@@ -298,11 +343,11 @@ export default function AIChatbot({
         setMessages(prev => [...prev, aiMessage]);
         setConversationId(data.conversationId);
         
-        // Auto-speak AI response if voice is enabled
+        // Auto-speak AI response if voice input was used
         if (isVoiceEnabled && voiceText) {
           setTimeout(() => {
             speakText(data.response, aiMessage.id);
-          }, 500);
+          }, 800); // Slightly longer delay for better UX
         }
         
         if (onMessageSubmit) {
@@ -377,7 +422,7 @@ export default function AIChatbot({
               AI Assistant
             </h3>
             <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-tertiary)' }}>
-              Ask me anything about your communications
+              {isRecording ? '🎤 Listening for your voice...' : 'Ask me anything about your communications'}
             </p>
           </div>
         </div>
@@ -423,6 +468,21 @@ export default function AIChatbot({
           )}
         </div>
       </div>
+
+      {/* Voice Status Indicator */}
+      {voiceStatus && (
+        <div style={{
+          padding: '8px 16px',
+          background: 'rgba(59, 130, 246, 0.1)',
+          borderBottom: '1px solid var(--border-light)',
+          fontSize: '12px',
+          color: '#3b82f6',
+          textAlign: 'center',
+          fontWeight: '500'
+        }}>
+          {voiceStatus}
+        </div>
+      )}
 
       {/* Messages */}
       <div style={{
@@ -540,7 +600,7 @@ export default function AIChatbot({
               alignItems: 'center',
               gap: '8px'
             }}>
-              {isRecording ? 'Listening...' : isTyping ? 'Thinking...' : 'Processing...'}
+              {isRecording ? '🎤 Listening...' : isTyping ? '🤔 Thinking...' : '⚡ Processing...'}
               <div style={{
                 display: 'flex',
                 gap: '2px'
@@ -613,7 +673,7 @@ export default function AIChatbot({
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Ask me about your messages, priorities, or decisions..."
+            placeholder={isRecording ? "🎤 Listening... Speak now!" : "Ask me about your messages, priorities, or decisions..."}
             style={{
               flex: 1,
               padding: '12px 16px',
@@ -638,16 +698,17 @@ export default function AIChatbot({
                 height: '44px',
                 borderRadius: '50%',
                 border: 'none',
-                background: isRecording ? 'var(--accent-danger)' : 'var(--accent-secondary)',
+                background: isRecording ? '#ef4444' : '#3b82f6',
                 color: 'white',
                 cursor: isLoading ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
-                animation: isRecording ? 'recordingPulse 1s infinite' : 'none'
+                animation: isRecording ? 'recordingPulse 1s infinite' : 'none',
+                boxShadow: isRecording ? '0 0 20px rgba(239, 68, 68, 0.5)' : '0 2px 8px rgba(59, 130, 246, 0.3)'
               }}
-              title={isRecording ? 'Stop recording' : 'Start voice input'}
+              title={isRecording ? 'Click to stop recording' : 'Click and speak your message'}
             >
               {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
             </button>
@@ -690,9 +751,24 @@ export default function AIChatbot({
         }
         
         @keyframes recordingPulse {
-          0% { transform: scale(1); }
-          50% { transform: scale(1.1); }
-          100% { transform: scale(1); }
+          0% { 
+            transform: scale(1);
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+          }
+          50% { 
+            transform: scale(1.1);
+            box-shadow: 0 0 30px rgba(239, 68, 68, 0.8);
+          }
+          100% { 
+            transform: scale(1);
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+          }
+        }
+        
+        /* Voice input placeholder animation */
+        input:disabled {
+          background: var(--bg-secondary) !important;
+          color: var(--text-tertiary) !important;
         }
       `}</style>
     </div>
