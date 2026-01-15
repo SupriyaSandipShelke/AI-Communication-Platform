@@ -32,7 +32,7 @@ export default function AIChatbot({
     {
       id: 'welcome',
       role: 'assistant',
-      content: 'Hello! I\'m your AI communication assistant. I can help you with message summaries, priority management, and communication insights. Try asking me about your daily summary or what needs attention!',
+      content: '👋 **Welcome to your AI Communication Assistant!**\n\nI\'m here to help you manage your communications effectively. I can:\n\n• 📊 **Summarize** your daily activity\n• 🚨 **Identify** high-priority messages\n• 📋 **Track** decisions and commitments\n• 🔍 **Search** through your conversations\n• 📈 **Analyze** communication patterns\n\n**Try asking**: "What needs my attention?" or click a quick action below!',
       timestamp: new Date()
     }
   ]);
@@ -44,10 +44,20 @@ export default function AIChatbot({
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const [currentPlayingId, setCurrentPlayingId] = useState<string | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const recordingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Simple markdown-like formatting for AI responses
+  const formatMessage = (content: string) => {
+    return content
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/\n/g, '<br />');
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -239,10 +249,16 @@ export default function AIChatbot({
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
+    
+    // Show typing indicator for better UX
+    setIsTyping(true);
 
     try {
       // Get auth token
       const token = localStorage.getItem('auth_token');
+      
+      // Simulate realistic response time (1-3 seconds)
+      const responseDelay = Math.random() * 2000 + 1000;
       
       // Call the AI API
       const response = await fetch('/api/chat/conversation', {
@@ -265,6 +281,11 @@ export default function AIChatbot({
       });
 
       const data = await response.json();
+
+      // Wait for minimum response time for better UX
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, responseDelay - 500)));
+      
+      setIsTyping(false);
 
       if (data.success) {
         const aiMessage: Message = {
@@ -298,10 +319,12 @@ export default function AIChatbot({
       }
     } catch (error) {
       console.error('Error chatting with AI:', error);
+      setIsTyping(false);
+      
       const errorMessage: Message = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: 'Sorry, I\'m having trouble connecting. Please try again.',
+        content: 'Sorry, I\'m having trouble connecting. Please try again in a moment.',
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -310,11 +333,19 @@ export default function AIChatbot({
     }
   };
 
-  const quickActions = [
-    { label: "Summarize my day", prompt: "Summarize today's communications" },
-    { label: "What needs attention?", prompt: "What messages need my attention?" },
-    { label: "Find recent decisions", prompt: "What decisions were made recently?" },
-    { label: "Show urgent messages", prompt: "Show me high priority messages" }
+  // Simple markdown-like formatting for AI responses
+  const formatMessage = (content: string) => {
+    return content
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/\n/g, '<br />');
+  };
+    { label: "📊 Summarize my day", prompt: "Summarize today's communications and activity" },
+    { label: "🚨 What needs attention?", prompt: "Show me high priority messages that need my attention" },
+    { label: "📋 Recent decisions", prompt: "What decisions were made recently in my conversations?" },
+    { label: "👥 Team updates", prompt: "Give me updates on team activity and meetings" },
+    { label: "📈 Communication stats", prompt: "Show me my communication statistics and patterns" },
+    { label: "🔍 Search messages", prompt: "Help me find specific messages or conversations" }
   ];
 
   return (
@@ -442,7 +473,11 @@ export default function AIChatbot({
               lineHeight: '1.5',
               position: 'relative'
             }}>
-              {message.content}
+              <div 
+                dangerouslySetInnerHTML={{ 
+                  __html: message.role === 'assistant' ? formatMessage(message.content) : message.content 
+                }} 
+              />
               
               {/* Voice controls for AI messages */}
               {message.role === 'assistant' && message.id !== 'welcome' && isVoiceEnabled && (
@@ -481,7 +516,7 @@ export default function AIChatbot({
           </div>
         ))}
         
-        {isLoading && (
+        {(isLoading || isTyping) && (
           <div style={{
             display: 'flex',
             gap: '12px',
@@ -506,9 +541,38 @@ export default function AIChatbot({
               color: 'white',
               borderRadius: '18px',
               padding: '12px 16px',
-              fontSize: '14px'
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
             }}>
-              {isRecording ? 'Listening...' : 'Thinking...'}
+              {isRecording ? 'Listening...' : isTyping ? 'Thinking...' : 'Processing...'}
+              <div style={{
+                display: 'flex',
+                gap: '2px'
+              }}>
+                <div style={{
+                  width: '4px',
+                  height: '4px',
+                  borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.8)',
+                  animation: 'pulse 1.4s ease-in-out infinite'
+                }} />
+                <div style={{
+                  width: '4px',
+                  height: '4px',
+                  borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.8)',
+                  animation: 'pulse 1.4s ease-in-out infinite 0.2s'
+                }} />
+                <div style={{
+                  width: '4px',
+                  height: '4px',
+                  borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.8)',
+                  animation: 'pulse 1.4s ease-in-out infinite 0.4s'
+                }} />
+              </div>
             </div>
           </div>
         )}
@@ -587,7 +651,7 @@ export default function AIChatbot({
                 alignItems: 'center',
                 justifyContent: 'center',
                 flexShrink: 0,
-                animation: isRecording ? 'pulse 1s infinite' : 'none'
+                animation: isRecording ? 'recordingPulse 1s infinite' : 'none'
               }}
               title={isRecording ? 'Stop recording' : 'Start voice input'}
             >
@@ -618,9 +682,20 @@ export default function AIChatbot({
         </div>
       </form>
       
-      {/* CSS for pulse animation */}
+      {/* CSS for animations */}
       <style>{`
         @keyframes pulse {
+          0%, 80%, 100% { 
+            transform: scale(0.8);
+            opacity: 0.5;
+          }
+          40% { 
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+        
+        @keyframes recordingPulse {
           0% { transform: scale(1); }
           50% { transform: scale(1.1); }
           100% { transform: scale(1); }
