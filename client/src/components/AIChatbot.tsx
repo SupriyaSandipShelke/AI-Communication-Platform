@@ -32,7 +32,7 @@ export default function AIChatbot({
     {
       id: 'welcome',
       role: 'assistant',
-      content: '👋 **Welcome to your AI Communication Assistant!**\n\nI\'m here to help you manage your communications effectively. I can:\n\n• 📊 **Summarize** your daily activity\n• 🚨 **Identify** high-priority messages\n• 📋 **Track** decisions and commitments\n• 🔍 **Search** through your conversations\n• 📈 **Analyze** communication patterns\n• 🎤 **Voice Input** - Click the microphone to speak!\n• 🔊 **Voice Output** - I can read responses aloud!\n\n**Try asking**: "What needs my attention?" or click the 🎤 microphone to speak!',
+      content: '👋 **Welcome to your AI Communication Assistant!**\n\nI\'m here to help you manage your communications effectively. I can:\n\n• 📊 **Summarize** your daily activity\n• 🚨 **Identify** high-priority messages\n• 📋 **Track** decisions and commitments\n• 🔍 **Search** through your conversations\n• 📈 **Analyze** communication patterns\n• 🎤 **Voice Input** - Click the microphone to speak!\n• 🔊 **Voice Output** - I can read responses aloud!\n\n**Voice Controls:**\n• 🛑 **Stop Speaking**: Click the red STOP button, press Escape, or click anywhere\n• 🔇 **Disable Voice**: Click the volume button in the header\n\n**Try asking**: "What needs my attention?" or click the 🎤 microphone to speak!',
       timestamp: new Date()
     }
   ]);
@@ -46,10 +46,12 @@ export default function AIChatbot({
   const [recognition, setRecognition] = useState<any>(null);
   const [isListening, setIsListening] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<string>('');
+  const [isSpeaking, setIsSpeaking] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const recognitionRef = useRef<any>(null);
+  const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   // Simple markdown-like formatting for AI responses
   const formatMessage = (content: string) => {
@@ -66,6 +68,20 @@ export default function AIChatbot({
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Add keyboard shortcut to stop speaking (Escape key)
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isSpeaking) {
+        stopSpeaking();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyPress);
+    return () => {
+      document.removeEventListener('keydown', handleKeyPress);
+    };
+  }, [isSpeaking]);
 
   // Initialize speech recognition and synthesis
   useEffect(() => {
@@ -155,6 +171,8 @@ export default function AIChatbot({
       if (recognitionRef.current) {
         recognitionRef.current.abort();
       }
+      // Stop any ongoing speech when component unmounts
+      speechSynthesis.cancel();
     };
   }, []);
 
@@ -209,11 +227,11 @@ export default function AIChatbot({
       return;
     }
 
-    // Stop any current speech
-    speechSynthesis.cancel();
+    // Stop any current speech first
+    stopSpeaking();
 
     // Clean text for better speech (remove markdown and special characters)
-    const cleanText = text
+    let cleanText = text
       .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold markdown
       .replace(/\*(.*?)\*/g, '$1')     // Remove italic markdown
       .replace(/#{1,6}\s/g, '')        // Remove headers
@@ -222,12 +240,18 @@ export default function AIChatbot({
       .replace(/\s+/g, ' ')            // Normalize whitespace
       .trim();
 
+    // Limit text length to prevent very long speeches (max 500 characters)
+    if (cleanText.length > 500) {
+      cleanText = cleanText.substring(0, 500) + '... Click the play button to hear the full message.';
+    }
+
     const utterance = new SpeechSynthesisUtterance(cleanText);
+    currentUtteranceRef.current = utterance;
     
     // Configure voice settings for better quality
-    utterance.rate = 0.85;  // Slightly slower for clarity
+    utterance.rate = 0.9;   // Good speaking speed
     utterance.pitch = 1.0;  // Normal pitch
-    utterance.volume = 0.9; // High volume
+    utterance.volume = 0.8; // Reasonable volume
     
     // Try to use a more natural voice if available
     const voices = speechSynthesis.getVoices();
@@ -243,6 +267,7 @@ export default function AIChatbot({
     utterance.onstart = () => {
       console.log('Started speaking:', cleanText.substring(0, 50) + '...');
       setCurrentPlayingId(messageId);
+      setIsSpeaking(true);
       setMessages(prev => prev.map(msg => 
         msg.id === messageId 
           ? { ...msg, isPlaying: true }
@@ -253,19 +278,31 @@ export default function AIChatbot({
     utterance.onend = () => {
       console.log('Finished speaking');
       setCurrentPlayingId(null);
+      setIsSpeaking(false);
       setMessages(prev => prev.map(msg => ({ ...msg, isPlaying: false })));
+      currentUtteranceRef.current = null;
     };
 
     utterance.onerror = (event) => {
       console.error('Speech synthesis error:', event.error);
       setCurrentPlayingId(null);
+      setIsSpeaking(false);
       setMessages(prev => prev.map(msg => ({ ...msg, isPlaying: false })));
+      currentUtteranceRef.current = null;
+    };
+
+    // Add boundary event to track progress
+    utterance.onboundary = (event) => {
+      // This helps track speech progress
+      console.log('Speech boundary:', event.name);
     };
 
     // Ensure voices are loaded before speaking
     if (voices.length === 0) {
       speechSynthesis.addEventListener('voiceschanged', () => {
-        speechSynthesis.speak(utterance);
+        if (currentUtteranceRef.current === utterance) {
+          speechSynthesis.speak(utterance);
+        }
       }, { once: true });
     } else {
       speechSynthesis.speak(utterance);
@@ -273,9 +310,12 @@ export default function AIChatbot({
   };
 
   const stopSpeaking = () => {
+    console.log('Stopping all speech...');
     speechSynthesis.cancel();
     setCurrentPlayingId(null);
+    setIsSpeaking(false);
     setMessages(prev => prev.map(msg => ({ ...msg, isPlaying: false })));
+    currentUtteranceRef.current = null;
   };
 
   const handleSubmit = async (e: React.FormEvent | null, voiceText?: string) => {
@@ -343,11 +383,11 @@ export default function AIChatbot({
         setMessages(prev => [...prev, aiMessage]);
         setConversationId(data.conversationId);
         
-        // Auto-speak AI response if voice input was used
-        if (isVoiceEnabled && voiceText) {
+        // Only auto-speak AI response if voice input was used AND user hasn't disabled it
+        if (isVoiceEnabled && voiceText && !isSpeaking) {
           setTimeout(() => {
             speakText(data.response, aiMessage.id);
-          }, 800); // Slightly longer delay for better UX
+          }, 1000); // Longer delay to let user read first
         }
         
         if (onMessageSubmit) {
@@ -429,6 +469,31 @@ export default function AIChatbot({
         
         {/* Voice Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Emergency Stop Button - Always visible when speaking */}
+          {isSpeaking && (
+            <button
+              onClick={stopSpeaking}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                border: 'none',
+                background: '#ef4444',
+                color: 'white',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                animation: 'emergencyPulse 1s infinite'
+              }}
+              title="Stop AI voice immediately"
+            >
+              🛑 STOP TALKING
+            </button>
+          )}
+          
           <button
             onClick={() => setIsVoiceEnabled(!isVoiceEnabled)}
             style={{
@@ -442,12 +507,12 @@ export default function AIChatbot({
               alignItems: 'center',
               justifyContent: 'center'
             }}
-            title={isVoiceEnabled ? 'Disable voice' : 'Enable voice'}
+            title={isVoiceEnabled ? 'Disable voice features' : 'Enable voice features'}
           >
             {isVoiceEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
           </button>
           
-          {currentPlayingId && (
+          {currentPlayingId && !isSpeaking && (
             <button
               onClick={stopSpeaking}
               style={{
@@ -485,14 +550,20 @@ export default function AIChatbot({
       )}
 
       {/* Messages */}
-      <div style={{
-        flex: 1,
-        overflow: 'auto',
-        padding: '16px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '16px'
-      }}>
+      <div 
+        style={{
+          flex: 1,
+          overflow: 'auto',
+          padding: '16px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px',
+          cursor: isSpeaking ? 'pointer' : 'default',
+          background: isSpeaking ? 'rgba(239, 68, 68, 0.05)' : 'transparent'
+        }}
+        onClick={isSpeaking ? stopSpeaking : undefined}
+        title={isSpeaking ? 'Click anywhere to stop AI voice' : undefined}
+      >
         {messages.map((message) => (
           <div
             key={message.id}
@@ -569,6 +640,66 @@ export default function AIChatbot({
             </div>
           </div>
         ))}
+        
+        {/* Speaking Indicator */}
+        {isSpeaking && (
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            alignItems: 'flex-start',
+            background: 'rgba(239, 68, 68, 0.1)',
+            padding: '12px',
+            borderRadius: '12px',
+            border: '2px solid #ef4444'
+          }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              background: '#ef4444',
+              color: 'white',
+              animation: 'speakingPulse 0.8s infinite'
+            }}>
+              <Bot size={16} />
+            </div>
+            
+            <div style={{
+              background: '#ef4444',
+              color: 'white',
+              borderRadius: '18px',
+              padding: '12px 16px',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              flex: 1
+            }}>
+              🔊 AI is speaking... Click anywhere to STOP
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  stopSpeaking();
+                }}
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  border: 'none',
+                  borderRadius: '4px',
+                  color: 'white',
+                  padding: '4px 8px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  marginLeft: 'auto'
+                }}
+              >
+                🛑 STOP
+              </button>
+            </div>
+          </div>
+        )}
         
         {(isLoading || isTyping) && (
           <div style={{
@@ -765,10 +896,46 @@ export default function AIChatbot({
           }
         }
         
+        @keyframes emergencyPulse {
+          0% { 
+            background: #ef4444;
+            transform: scale(1);
+          }
+          50% { 
+            background: #dc2626;
+            transform: scale(1.05);
+          }
+          100% { 
+            background: #ef4444;
+            transform: scale(1);
+          }
+        }
+        
+        @keyframes speakingPulse {
+          0% { 
+            transform: scale(1);
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+          }
+          50% { 
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.8);
+          }
+          100% { 
+            transform: scale(1);
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+          }
+        }
+        
         /* Voice input placeholder animation */
         input:disabled {
           background: var(--bg-secondary) !important;
           color: var(--text-tertiary) !important;
+        }
+        
+        /* Speaking area highlight */
+        .speaking-area {
+          background: rgba(239, 68, 68, 0.05) !important;
+          cursor: pointer !important;
         }
       `}</style>
     </div>
