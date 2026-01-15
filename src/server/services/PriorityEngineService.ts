@@ -23,12 +23,15 @@ interface PriorityInboxItem {
   messageId: string;
   roomId: string;
   sender: string;
+  senderName?: string;
   content: string;
   timestamp: Date;
   priorityScore: number;
   priorityLabel: string;
   reasons: string[];
+  suggestedAction: string;
   isRead: boolean;
+  platform?: string;
 }
 
 /**
@@ -198,41 +201,82 @@ export class PriorityEngineService {
    * Get priority inbox (high-priority unread messages)
    */
   async getPriorityInbox(userId: string, limit: number = 50): Promise<PriorityInboxItem[]> {
-    // This would typically query from database
-    // For now, return structure
-    const messages = await this.dbService.getMessages({
-      limit,
-      // Add user filter when user system is implemented
-    });
+    try {
+      // Get recent messages from database
+      const messages = await this.dbService.getMessages({
+        limit: limit * 2, // Get more to filter properly
+        orderBy: 'timestamp',
+        order: 'DESC'
+      });
 
-    const priorityItems: PriorityInboxItem[] = [];
+      const priorityItems: PriorityInboxItem[] = [];
 
-    for (const msg of messages) {
-      const priority = await this.evaluatePriority(
-        msg.content,
-        msg.sender,
-        msg.roomId
-      );
+      for (const msg of messages) {
+        try {
+          const priority = await this.evaluatePriority(
+            msg.content,
+            msg.sender,
+            msg.roomId
+          );
 
-      if (priority.score >= 50) { // Only include important+ messages
-        priorityItems.push({
-          messageId: (msg as any).id || '',
-          roomId: msg.roomId,
-          sender: msg.sender,
-          content: msg.content,
-          timestamp: msg.timestamp,
-          priorityScore: priority.score,
-          priorityLabel: priority.label,
-          reasons: priority.reasons,
-          isRead: false,
-        });
+          // Only include messages with priority >= 50
+          if (priority.score >= 50) {
+            // Get sender name from database
+            let senderName = msg.sender;
+            try {
+              const user = await this.dbService.getUserById(msg.sender);
+              if (user) {
+                senderName = user.username || user.email || msg.sender;
+              }
+            } catch (error) {
+              // Use sender ID if user lookup fails
+            }
+
+            // Get room/chat name
+            let roomName = 'General';
+            try {
+              const chat = await this.dbService.getChat(msg.roomId, userId);
+              if (chat) {
+                roomName = chat.name || `Chat ${msg.roomId}`;
+              }
+            } catch (error) {
+              // Use default room name if lookup fails
+            }
+
+            priorityItems.push({
+              messageId: (msg as any).id || `msg-${Date.now()}-${Math.random()}`,
+              roomId: msg.roomId,
+              sender: msg.sender,
+              senderName,
+              content: msg.content,
+              timestamp: msg.timestamp,
+              priorityScore: priority.score,
+              priorityLabel: priority.label,
+              reasons: priority.reasons,
+              suggestedAction: priority.suggestedAction,
+              isRead: false, // TODO: Implement read status tracking
+              platform: msg.platform || 'websocket'
+            });
+          }
+        } catch (error) {
+          console.error('Error evaluating message priority:', error);
+          // Skip this message if priority evaluation fails
+        }
       }
+
+      // Sort by priority score descending, then by timestamp descending
+      priorityItems.sort((a, b) => {
+        if (b.priorityScore !== a.priorityScore) {
+          return b.priorityScore - a.priorityScore;
+        }
+        return b.timestamp.getTime() - a.timestamp.getTime();
+      });
+
+      return priorityItems.slice(0, limit);
+    } catch (error) {
+      console.error('Error getting priority inbox:', error);
+      return [];
     }
-
-    // Sort by priority score descending
-    priorityItems.sort((a, b) => b.priorityScore - a.priorityScore);
-
-    return priorityItems.slice(0, limit);
   }
 
   /**

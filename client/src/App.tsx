@@ -1,5 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import LandingPage from './pages/LandingPage';
+import Forum from './pages/Forum';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Messages from './pages/Messages';
@@ -70,6 +72,10 @@ function App() {
     <>
       <Router>
         <Routes>
+          {/* Public Routes */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/forum" element={<Forum />} />
+          
           <Route
             path="/login"
             element={
@@ -80,6 +86,8 @@ function App() {
               )
             }
           />
+          
+          {/* Protected Routes */}
           <Route
             path="/dashboard"
             element={
@@ -139,16 +147,6 @@ function App() {
                 <Navigate to="/login" replace />
               )
             }
-          />
-          <Route 
-            path="/" 
-            element={
-              isAuthenticated ? (
-                <Navigate to="/dashboard" replace />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            } 
           />
         </Routes>
       </Router>
