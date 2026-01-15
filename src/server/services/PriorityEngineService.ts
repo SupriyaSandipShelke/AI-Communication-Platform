@@ -204,9 +204,7 @@ export class PriorityEngineService {
     try {
       // Get recent messages from database
       const messages = await this.dbService.getMessages({
-        limit: limit * 2, // Get more to filter properly
-        orderBy: 'timestamp',
-        order: 'DESC'
+        limit: limit * 2 // Get more to filter properly
       });
 
       const priorityItems: PriorityInboxItem[] = [];
@@ -226,7 +224,7 @@ export class PriorityEngineService {
             try {
               const user = await this.dbService.getUserById(msg.sender);
               if (user) {
-                senderName = user.username || user.email || msg.sender;
+                senderName = user.username || msg.sender;
               }
             } catch (error) {
               // Use sender ID if user lookup fails
