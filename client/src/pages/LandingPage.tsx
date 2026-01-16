@@ -14,92 +14,97 @@ import {
   Star,
   ArrowRight,
   Play,
-  CheckCircle
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
 
 export default function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [showDemoModal, setShowDemoModal] = useState(false);
   const navigate = useNavigate();
 
   const useCases = [
     {
-      title: "Customer Support",
-      description: "AI-powered customer service with instant responses",
-      icon: "🎧",
-      features: ["24/7 Availability", "Multi-language Support", "Smart Routing"]
-    },
-    {
-      title: "Sales & Marketing", 
-      description: "Engage prospects with intelligent conversations",
-      icon: "💼",
-      features: ["Lead Qualification", "Product Recommendations", "Follow-up Automation"]
-    },
-    {
-      title: "Team Collaboration",
-      description: "Enhanced internal communication and productivity",
+      title: "Team Communication",
+      description: "Real-time messaging for teams with group chat capabilities",
       icon: "👥",
-      features: ["Priority Detection", "Smart Notifications", "Task Management"]
+      features: ["Group Chats", "Real-time Messaging", "Member Management"]
     },
     {
-      title: "Education & Training",
-      description: "Interactive learning experiences with AI tutors",
-      icon: "🎓",
-      features: ["Personalized Learning", "Progress Tracking", "Interactive Quizzes"]
+      title: "Project Collaboration", 
+      description: "Coordinate projects with instant communication",
+      icon: "💼",
+      features: ["Message History", "Typing Indicators", "Online Status"]
+    },
+    {
+      title: "Customer Support",
+      description: "Provide instant support with AI-powered assistance",
+      icon: "🎧",
+      features: ["AI Chatbot", "Priority Inbox", "Smart Analytics"]
+    },
+    {
+      title: "Social Networking",
+      description: "Connect with friends and family instantly",
+      icon: "🌐",
+      features: ["Status Updates", "Group Forums", "Voice Messages"]
     }
   ];
 
   const platforms = [
     {
-      name: "Web Platform",
-      description: "Full-featured web application",
-      icon: "🌐",
-      features: ["Real-time Chat", "Voice Integration", "Analytics Dashboard"]
+      name: "Real-time Messaging",
+      description: "WebSocket-powered instant communication",
+      icon: "⚡",
+      features: ["Instant Delivery", "Read Receipts", "Typing Indicators"]
     },
     {
-      name: "Mobile Apps",
-      description: "iOS and Android applications",
-      icon: "📱",
-      features: ["Push Notifications", "Offline Mode", "Touch Optimized"]
+      name: "Group Management",
+      description: "Create and manage group conversations",
+      icon: "👥",
+      features: ["Add/Remove Members", "Admin Controls", "Group Profiles"]
     },
     {
-      name: "API Integration",
-      description: "RESTful APIs for custom integration",
-      icon: "🔌",
-      features: ["Webhook Support", "SDK Available", "Rate Limiting"]
+      name: "AI Assistant",
+      description: "Intelligent chatbot for automated responses",
+      icon: "🤖",
+      features: ["Smart Replies", "Context Awareness", "24/7 Availability"]
     },
     {
-      name: "Enterprise Solutions",
-      description: "On-premise and cloud deployments",
-      icon: "🏢",
-      features: ["SSO Integration", "Custom Branding", "Dedicated Support"]
+      name: "Analytics Dashboard",
+      description: "Track communication patterns and insights",
+      icon: "📊",
+      features: ["Message Analytics", "Priority Inbox", "Custom Reports"]
     }
   ];
 
   const pricingPlans = [
     {
-      name: "Starter",
-      price: "Free",
+      name: "Free",
+      price: "₹0",
       description: "Perfect for individuals and small teams",
       features: [
-        "Up to 100 messages/month",
-        "Basic AI responses",
-        "Web platform access",
+        "Unlimited messages",
+        "Group chats",
+        "Real-time messaging",
+        "AI chatbot assistant",
+        "Message history",
         "Community support"
       ],
       popular: false
     },
     {
-      name: "Professional",
-      price: "$29/month",
+      name: "Pro",
+      price: "₹499/month",
       description: "For growing businesses and teams",
       features: [
-        "Up to 10,000 messages/month",
-        "Advanced AI features",
-        "Voice integration",
+        "Everything in Free",
+        "Priority inbox",
+        "Advanced analytics",
+        "Voice messages",
+        "Custom themes",
         "Priority support",
-        "Analytics dashboard",
-        "API access"
+        "Export data"
       ],
       popular: true
     },
@@ -108,12 +113,13 @@ export default function LandingPage() {
       price: "Custom",
       description: "For large organizations",
       features: [
-        "Unlimited messages",
-        "Custom AI training",
+        "Everything in Pro",
         "On-premise deployment",
-        "24/7 dedicated support",
         "Custom integrations",
-        "SLA guarantee"
+        "Dedicated support",
+        "SLA guarantee",
+        "Custom branding",
+        "Advanced security"
       ],
       popular: false
     }
@@ -347,7 +353,7 @@ export default function LandingPage() {
           marginBottom: '24px',
           lineHeight: '1.1'
         }}>
-          Conversational <span style={{ color: '#4ade80' }}>AI</span><br />
+          AI-Powered <span style={{ color: '#4ade80' }}>Real-Time</span><br />
           <span style={{ color: '#4ade80' }}>Communication</span> Platform
         </h1>
         
@@ -363,7 +369,7 @@ export default function LandingPage() {
           color: 'rgba(255,255,255,0.9)',
           marginBottom: '16px'
         }}>
-          Real-time Perception and Action Abilities
+          WhatsApp-like messaging with intelligent AI assistance
         </p>
         
         <div style={{
@@ -374,7 +380,7 @@ export default function LandingPage() {
           marginBottom: '48px'
         }}>
           <span style={{ color: 'white', fontWeight: 'bold' }}>
-            ⭐ Rated #1 by Developers
+            ⭐ Modern • Fast • Intelligent
           </span>
         </div>
 
@@ -408,6 +414,7 @@ export default function LandingPage() {
           </button>
           
           <button
+            onClick={() => setShowDemoModal(true)}
             style={{
               padding: '16px 32px',
               background: 'rgba(255,255,255,0.2)',
@@ -448,26 +455,37 @@ export default function LandingPage() {
             borderRadius: '16px',
             padding: '32px',
             textAlign: 'center',
-            border: '1px solid rgba(255,255,255,0.2)'
-          }}>
+            border: '1px solid rgba(255,255,255,0.2)',
+            transition: 'transform 0.3s, box-shadow 0.3s'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-8px)';
+            e.currentTarget.style.boxShadow = '0 20px 40px rgba(74, 222, 128, 0.3)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+          >
             <div style={{
               width: '80px',
               height: '80px',
-              background: '#4ade80',
+              background: 'linear-gradient(135deg, #4ade80, #22c55e)',
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 24px',
-              fontSize: '32px'
+              fontSize: '32px',
+              boxShadow: '0 8px 24px rgba(74, 222, 128, 0.4)'
             }}>
-              🎭
+              💬
             </div>
-            <h3 style={{ color: 'white', fontSize: '24px', marginBottom: '16px' }}>
-              Role-play AI Avatars
+            <h3 style={{ color: 'white', fontSize: '24px', marginBottom: '16px', fontWeight: 'bold' }}>
+              Real-Time Messaging
             </h3>
             <p style={{ color: 'rgba(255,255,255,0.8)', lineHeight: '1.6' }}>
-              Create intelligent AI characters with unique personalities and conversation abilities
+              Instant message delivery with WebSocket technology. See typing indicators, read receipts, and online status in real-time.
             </p>
           </div>
 
@@ -477,26 +495,37 @@ export default function LandingPage() {
             borderRadius: '16px',
             padding: '32px',
             textAlign: 'center',
-            border: '1px solid rgba(255,255,255,0.2)'
-          }}>
+            border: '1px solid rgba(255,255,255,0.2)',
+            transition: 'transform 0.3s, box-shadow 0.3s'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-8px)';
+            e.currentTarget.style.boxShadow = '0 20px 40px rgba(245, 158, 11, 0.3)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+          >
             <div style={{
               width: '80px',
               height: '80px',
-              background: '#f59e0b',
+              background: 'linear-gradient(135deg, #f59e0b, #d97706)',
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 24px',
-              fontSize: '32px'
+              fontSize: '32px',
+              boxShadow: '0 8px 24px rgba(245, 158, 11, 0.4)'
             }}>
-              🥽
+              🤖
             </div>
-            <h3 style={{ color: 'white', fontSize: '24px', marginBottom: '16px' }}>
-              XR Training Simulations
+            <h3 style={{ color: 'white', fontSize: '24px', marginBottom: '16px', fontWeight: 'bold' }}>
+              AI-Powered Assistant
             </h3>
             <p style={{ color: 'rgba(255,255,255,0.8)', lineHeight: '1.6' }}>
-              Immersive training experiences with AI-powered virtual reality environments
+              Intelligent chatbot that understands context and provides smart responses. Get instant help and automated assistance 24/7.
             </p>
           </div>
 
@@ -506,26 +535,37 @@ export default function LandingPage() {
             borderRadius: '16px',
             padding: '32px',
             textAlign: 'center',
-            border: '1px solid rgba(255,255,255,0.2)'
-          }}>
+            border: '1px solid rgba(255,255,255,0.2)',
+            transition: 'transform 0.3s, box-shadow 0.3s'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-8px)';
+            e.currentTarget.style.boxShadow = '0 20px 40px rgba(139, 92, 246, 0.3)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+          >
             <div style={{
               width: '80px',
               height: '80px',
-              background: '#8b5cf6',
+              background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 24px',
-              fontSize: '32px'
+              fontSize: '32px',
+              boxShadow: '0 8px 24px rgba(139, 92, 246, 0.4)'
             }}>
-              🌍
+              📊
             </div>
-            <h3 style={{ color: 'white', fontSize: '24px', marginBottom: '16px' }}>
-              Social Worlds and Gaming
+            <h3 style={{ color: 'white', fontSize: '24px', marginBottom: '16px', fontWeight: 'bold' }}>
+              Smart Analytics
             </h3>
             <p style={{ color: 'rgba(255,255,255,0.8)', lineHeight: '1.6' }}>
-              Build interactive social experiences and gaming environments with AI companions
+              Track communication patterns with beautiful charts. Priority inbox automatically identifies important messages.
             </p>
           </div>
         </div>
@@ -543,10 +583,20 @@ export default function LandingPage() {
             fontWeight: 'bold',
             color: 'white',
             textAlign: 'center',
-            marginBottom: '64px'
+            marginBottom: '16px'
           }}>
-            Use Cases
+            Perfect For Every Team
           </h2>
+          <p style={{
+            fontSize: '1.25rem',
+            color: 'rgba(255,255,255,0.8)',
+            textAlign: 'center',
+            marginBottom: '64px',
+            maxWidth: '600px',
+            margin: '0 auto 64px'
+          }}>
+            From small teams to large organizations, CommHub adapts to your communication needs
+          </p>
           
           <div style={{
             display: 'grid',
@@ -609,10 +659,20 @@ export default function LandingPage() {
             fontWeight: 'bold',
             color: 'white',
             textAlign: 'center',
-            marginBottom: '64px'
+            marginBottom: '16px'
           }}>
-            Platform
+            Powerful Features
           </h2>
+          <p style={{
+            fontSize: '1.25rem',
+            color: 'rgba(255,255,255,0.8)',
+            textAlign: 'center',
+            marginBottom: '64px',
+            maxWidth: '600px',
+            margin: '0 auto 64px'
+          }}>
+            Everything you need for modern team communication
+          </p>
           
           <div style={{
             display: 'grid',
@@ -671,10 +731,20 @@ export default function LandingPage() {
             fontWeight: 'bold',
             color: 'white',
             textAlign: 'center',
-            marginBottom: '64px'
+            marginBottom: '16px'
           }}>
-            Pricing
+            Simple, Transparent Pricing
           </h2>
+          <p style={{
+            fontSize: '1.25rem',
+            color: 'rgba(255,255,255,0.8)',
+            textAlign: 'center',
+            marginBottom: '64px',
+            maxWidth: '600px',
+            margin: '0 auto 64px'
+          }}>
+            Choose the plan that's right for your team
+          </p>
           
           <div style={{
             display: 'grid',
@@ -755,12 +825,14 @@ export default function LandingPage() {
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = plan.popular ? '#22c55e' : 'rgba(255,255,255,0.3)';
+                    e.currentTarget.style.transform = 'scale(1.05)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = plan.popular ? '#4ade80' : 'rgba(255,255,255,0.2)';
+                    e.currentTarget.style.transform = 'scale(1)';
                   }}
                 >
-                  {plan.price === 'Free' ? 'Get Started' : plan.price === 'Custom' ? 'Contact Sales' : 'Start Free Trial'}
+                  {plan.price === 'Free' ? 'Get Started Free' : plan.price === 'Custom' ? 'Contact Sales' : 'Start Free Trial'}
                 </button>
               </div>
             ))}
@@ -777,9 +849,9 @@ export default function LandingPage() {
             fontSize: '3rem',
             fontWeight: 'bold',
             color: 'white',
-            marginBottom: '32px'
+            marginBottom: '16px'
           }}>
-            Community Forum
+            Join Our Community
           </h2>
           <p style={{
             fontSize: '1.25rem',
@@ -787,8 +859,7 @@ export default function LandingPage() {
             marginBottom: '48px',
             lineHeight: '1.6'
           }}>
-            Join our vibrant community of developers, creators, and AI enthusiasts. 
-            Share ideas, get help, and collaborate on amazing projects.
+            Connect with developers, share ideas, and get help from our vibrant community of users building amazing communication experiences.
           </p>
           
           <div style={{
@@ -801,31 +872,43 @@ export default function LandingPage() {
               background: 'rgba(255,255,255,0.1)',
               borderRadius: '12px',
               padding: '24px',
-              textAlign: 'center'
-            }}>
+              textAlign: 'center',
+              transition: 'transform 0.3s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            >
               <div style={{ fontSize: '32px', marginBottom: '16px' }}>👥</div>
-              <h4 style={{ color: 'white', marginBottom: '8px' }}>5,000+</h4>
-              <p style={{ color: 'rgba(255,255,255,0.8)', margin: 0 }}>Active Members</p>
+              <h4 style={{ color: 'white', marginBottom: '8px', fontSize: '24px', fontWeight: 'bold' }}>2,500+</h4>
+              <p style={{ color: 'rgba(255,255,255,0.8)', margin: 0 }}>Active Users</p>
             </div>
             <div style={{
               background: 'rgba(255,255,255,0.1)',
               borderRadius: '12px',
               padding: '24px',
-              textAlign: 'center'
-            }}>
+              textAlign: 'center',
+              transition: 'transform 0.3s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            >
               <div style={{ fontSize: '32px', marginBottom: '16px' }}>💬</div>
-              <h4 style={{ color: 'white', marginBottom: '8px' }}>10,000+</h4>
-              <p style={{ color: 'rgba(255,255,255,0.8)', margin: 0 }}>Discussions</p>
+              <h4 style={{ color: 'white', marginBottom: '8px', fontSize: '24px', fontWeight: 'bold' }}>50,000+</h4>
+              <p style={{ color: 'rgba(255,255,255,0.8)', margin: 0 }}>Messages Sent</p>
             </div>
             <div style={{
               background: 'rgba(255,255,255,0.1)',
               borderRadius: '12px',
               padding: '24px',
-              textAlign: 'center'
-            }}>
-              <div style={{ fontSize: '32px', marginBottom: '16px' }}>🚀</div>
-              <h4 style={{ color: 'white', marginBottom: '8px' }}>500+</h4>
-              <p style={{ color: 'rgba(255,255,255,0.8)', margin: 0 }}>Projects Shared</p>
+              textAlign: 'center',
+              transition: 'transform 0.3s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            >
+              <div style={{ fontSize: '32px', marginBottom: '16px' }}>⚡</div>
+              <h4 style={{ color: 'white', marginBottom: '8px', fontSize: '24px', fontWeight: 'bold' }}>99.9%</h4>
+              <p style={{ color: 'rgba(255,255,255,0.8)', margin: 0 }}>Uptime</p>
             </div>
           </div>
           
@@ -964,8 +1047,8 @@ export default function LandingPage() {
             </h3>
           </div>
           
-          <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: '24px' }}>
-            Building the future of conversational AI communication
+          <p style={{ color: 'rgba(255,255,255,0.8)', marginBottom: '24px', fontSize: '16px' }}>
+            Empowering teams with intelligent, real-time communication
           </p>
           
           <div style={{
@@ -982,10 +1065,328 @@ export default function LandingPage() {
           </div>
           
           <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '14px', margin: 0 }}>
-            © 2024 CommHub. All rights reserved.
+            © 2025 CommHub. All rights reserved. Built with ❤️ by Supriya Sandip Shelke
           </p>
         </div>
       </footer>
+
+      {/* Demo Modal */}
+      {showDemoModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.8)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+          padding: '20px',
+          overflowY: 'auto'
+        }}
+        onClick={() => setShowDemoModal(false)}
+        >
+          <div style={{
+            background: 'white',
+            borderRadius: '24px',
+            maxWidth: '900px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            position: 'relative'
+          }}
+          onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setShowDemoModal(false)}
+              style={{
+                position: 'absolute',
+                top: '20px',
+                right: '20px',
+                background: 'rgba(0,0,0,0.1)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '40px',
+                height: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                transition: 'background 0.2s',
+                zIndex: 10
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.2)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.1)'}
+            >
+              <XCircle size={24} color="#374151" />
+            </button>
+
+            {/* Modal Content */}
+            <div style={{ padding: '48px' }}>
+              <div style={{ textAlign: 'center', marginBottom: '48px' }}>
+                <div style={{
+                  display: 'inline-flex',
+                  padding: '16px',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  borderRadius: '16px',
+                  marginBottom: '24px'
+                }}>
+                  <Play size={40} color="white" />
+                </div>
+                <h2 style={{
+                  fontSize: '36px',
+                  fontWeight: 'bold',
+                  color: '#1f2937',
+                  marginBottom: '16px'
+                }}>
+                  Welcome to CommHub Demo
+                </h2>
+                <p style={{
+                  fontSize: '18px',
+                  color: '#6b7280',
+                  maxWidth: '600px',
+                  margin: '0 auto'
+                }}>
+                  Learn how to use CommHub in just a few minutes. Follow these step-by-step guides to get started.
+                </p>
+              </div>
+
+              {/* Demo Steps */}
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '24px'
+              }}>
+                {/* Step 1 */}
+                <div style={{
+                  background: 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
+                  borderRadius: '16px',
+                  padding: '32px',
+                  border: '2px solid #667eea'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      borderRadius: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontSize: '24px',
+                      fontWeight: 'bold'
+                    }}>
+                      1
+                    </div>
+                    <h3 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>
+                      Sign Up & Sign In
+                    </h3>
+                  </div>
+                  <p style={{ color: '#4b5563', fontSize: '16px', lineHeight: '1.6', marginBottom: '16px' }}>
+                    Getting started with CommHub is easy:
+                  </p>
+                  <ul style={{ color: '#4b5563', fontSize: '16px', lineHeight: '1.8', paddingLeft: '24px' }}>
+                    <li>Click the <strong>"Get Started"</strong> button on the homepage</li>
+                    <li>Choose <strong>"Sign Up"</strong> if you're a new user or <strong>"Sign In"</strong> if you already have an account</li>
+                    <li>For quick access, try one of our <strong>Demo Users</strong> (no password required!)</li>
+                    <li>After successful login, you'll be redirected to your Dashboard</li>
+                  </ul>
+                </div>
+
+                {/* Step 2 */}
+                <div style={{
+                  background: 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
+                  borderRadius: '16px',
+                  padding: '32px',
+                  border: '2px solid #4ade80'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      background: 'linear-gradient(135deg, #4ade80 0%, #22c55e 100%)',
+                      borderRadius: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontSize: '24px',
+                      fontWeight: 'bold'
+                    }}>
+                      2
+                    </div>
+                    <h3 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>
+                      Navigate the Dashboard
+                    </h3>
+                  </div>
+                  <p style={{ color: '#4b5563', fontSize: '16px', lineHeight: '1.6', marginBottom: '16px' }}>
+                    Your Dashboard is your command center:
+                  </p>
+                  <ul style={{ color: '#4b5563', fontSize: '16px', lineHeight: '1.8', paddingLeft: '24px' }}>
+                    <li>View <strong>message statistics</strong> (Total, High Priority, Medium, Low)</li>
+                    <li>Read your <strong>daily AI summary</strong> of conversations</li>
+                    <li>Access quick links to Messages, Priority Inbox, Analytics, Groups, and Settings</li>
+                    <li>Chat with the <strong>AI Assistant</strong> for instant help</li>
+                  </ul>
+                </div>
+
+                {/* Step 3 */}
+                <div style={{
+                  background: 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
+                  borderRadius: '16px',
+                  padding: '32px',
+                  border: '2px solid #f59e0b'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                      borderRadius: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontSize: '24px',
+                      fontWeight: 'bold'
+                    }}>
+                      3
+                    </div>
+                    <h3 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>
+                      Send Messages
+                    </h3>
+                  </div>
+                  <p style={{ color: '#4b5563', fontSize: '16px', lineHeight: '1.6', marginBottom: '16px' }}>
+                    Real-time messaging made simple:
+                  </p>
+                  <ul style={{ color: '#4b5563', fontSize: '16px', lineHeight: '1.8', paddingLeft: '24px' }}>
+                    <li>Go to <strong>Messages</strong> from the sidebar menu</li>
+                    <li>Select a conversation or create a new one</li>
+                    <li>Type your message and press Enter or click Send</li>
+                    <li>See <strong>typing indicators</strong> when others are typing</li>
+                    <li>Get <strong>read receipts</strong> (✓✓) when messages are read</li>
+                    <li>View <strong>online/offline status</strong> of contacts</li>
+                  </ul>
+                </div>
+
+                {/* Step 4 */}
+                <div style={{
+                  background: 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
+                  borderRadius: '16px',
+                  padding: '32px',
+                  border: '2px solid #8b5cf6'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                      borderRadius: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontSize: '24px',
+                      fontWeight: 'bold'
+                    }}>
+                      4
+                    </div>
+                    <h3 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>
+                      Use AI-Powered Features
+                    </h3>
+                  </div>
+                  <p style={{ color: '#4b5563', fontSize: '16px', lineHeight: '1.6', marginBottom: '16px' }}>
+                    Leverage intelligent automation:
+                  </p>
+                  <ul style={{ color: '#4b5563', fontSize: '16px', lineHeight: '1.8', paddingLeft: '24px' }}>
+                    <li><strong>AI Chatbot:</strong> Ask questions and get instant answers on your Dashboard</li>
+                    <li><strong>Priority Inbox:</strong> Automatically identifies important messages</li>
+                    <li><strong>Smart Analytics:</strong> View communication patterns with beautiful charts</li>
+                    <li><strong>Daily Summaries:</strong> Get AI-generated summaries of your conversations</li>
+                    <li><strong>Auto-Reply:</strong> Set up automated responses for common queries</li>
+                  </ul>
+                </div>
+
+                {/* Step 5 */}
+                <div style={{
+                  background: 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
+                  borderRadius: '16px',
+                  padding: '32px',
+                  border: '2px solid #ef4444'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                      borderRadius: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontSize: '24px',
+                      fontWeight: 'bold'
+                    }}>
+                      5
+                    </div>
+                    <h3 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>
+                      Manage Conversations & Settings
+                    </h3>
+                  </div>
+                  <p style={{ color: '#4b5563', fontSize: '16px', lineHeight: '1.6', marginBottom: '16px' }}>
+                    Customize your experience:
+                  </p>
+                  <ul style={{ color: '#4b5563', fontSize: '16px', lineHeight: '1.8', paddingLeft: '24px' }}>
+                    <li><strong>Groups:</strong> Create and manage group conversations with multiple members</li>
+                    <li><strong>Settings:</strong> Customize themes, notifications, and preferences</li>
+                    <li><strong>Analytics:</strong> Track message volume, response times, and engagement</li>
+                    <li><strong>Priority Inbox:</strong> Filter, search, and manage important messages</li>
+                    <li><strong>Profile:</strong> Update your profile information and avatar</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* CTA Button */}
+              <div style={{ textAlign: 'center', marginTop: '48px' }}>
+                <button
+                  onClick={() => {
+                    setShowDemoModal(false);
+                    navigate('/login');
+                  }}
+                  style={{
+                    padding: '16px 48px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s',
+                    boxShadow: '0 8px 24px rgba(102, 126, 234, 0.4)'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  Get Started Now →
+                </button>
+                <p style={{
+                  fontSize: '14px',
+                  color: '#6b7280',
+                  marginTop: '16px'
+                }}>
+                  Ready to experience CommHub? Sign up in seconds!
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

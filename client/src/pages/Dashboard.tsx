@@ -110,16 +110,16 @@ export default function Dashboard() {
     <Layout>
       <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
         <div style={{ marginBottom: '32px' }}>
-          <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: 'white', marginBottom: '8px' }}>
+          <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>
             Dashboard
           </h1>
-          <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '16px' }}>
+          <p style={{ color: '#6b7280', fontSize: '16px' }}>
             Welcome back! Here's your communication overview.
           </p>
         </div>
 
         {loading ? (
-          <div style={{ textAlign: 'center', color: 'white', padding: '48px' }}>
+          <div style={{ textAlign: 'center', color: '#1f2937', padding: '48px' }}>
             Loading dashboard...
           </div>
         ) : (

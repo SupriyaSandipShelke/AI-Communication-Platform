@@ -1,7 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import Layout from '../components/Layout';
-import { MessageSquare, AlertTriangle, Clock, CheckCircle, Star, ChevronRight, ArrowLeft } from 'lucide-react';
+import { 
+  MessageSquare, AlertTriangle, Clock, CheckCircle, Star, ChevronRight, ArrowLeft,
+  Filter, Settings, RefreshCw, Bell, BellOff, Zap, TrendingUp, Eye, EyeOff,
+  Archive, Trash2, MoreVertical, Search, X, Calendar, Users, Tag
+} from 'lucide-react';
 import '../styles/chatMessage.css';
 
 interface PriorityMessage {
@@ -17,6 +21,9 @@ interface PriorityMessage {
   platform?: string;
   reasons?: string[];
   suggestedAction?: string;
+  tags?: string[];
+  archived?: boolean;
+  snoozedUntil?: Date;
 }
 
 interface PriorityFilters {
@@ -28,6 +35,9 @@ interface PriorityFilters {
   senders: string[];
   sortBy: 'priority' | 'timestamp' | 'sender';
   sortOrder: 'asc' | 'desc';
+  searchQuery: string;
+  tags: string[];
+  showArchived: boolean;
 }
 
 interface PrioritySettings {
@@ -43,6 +53,9 @@ interface PrioritySettings {
     medium: number;
     low: number;
   };
+  compactView: boolean;
+  showPriorityScore: boolean;
+  groupByPriority: boolean;
 }
 
 export default function PriorityInbox() {
@@ -51,6 +64,8 @@ export default function PriorityInbox() {
   const [showSettings, setShowSettings] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<'list' | 'compact' | 'grouped'>('list');
   
   const [filters, setFilters] = useState<PriorityFilters>({
     minPriority: 50,
@@ -60,7 +75,10 @@ export default function PriorityInbox() {
     platforms: [],
     senders: [],
     sortBy: 'priority',
-    sortOrder: 'desc'
+    sortOrder: 'desc',
+    searchQuery: '',
+    tags: [],
+    showArchived: false
   });
 
   const [settings, setSettings] = useState<PrioritySettings>({
@@ -69,13 +87,16 @@ export default function PriorityInbox() {
     notifications: true,
     soundAlerts: false,
     vipContacts: [],
-    customKeywords: ['urgent', 'asap', 'deadline', 'critical'],
+    customKeywords: ['urgent', 'asap', 'deadline', 'critical', 'important'],
     priorityThresholds: {
       critical: 80,
       high: 60,
       medium: 40,
       low: 20
-    }
+    },
+    compactView: false,
+    showPriorityScore: true,
+    groupByPriority: false
   });
 
   useEffect(() => {
@@ -153,77 +174,127 @@ export default function PriorityInbox() {
   };
 
   const loadDemoData = () => {
-    // Demo data for when API is not available
+    // Enhanced demo data with more variety
     const demoMessages: PriorityMessage[] = [
       {
         id: 'demo-1',
         sender: 'jane_smith',
         senderName: 'Jane Smith',
-        content: 'URGENT: Production server is down! Need immediate attention.',
+        content: 'URGENT: Production server is down! Need immediate attention. Users are reporting 500 errors.',
         timestamp: new Date(Date.now() - 1000 * 60 * 30),
         priority: 95,
         roomId: 'chat1',
         roomName: 'Project Alpha Team',
         read: false,
         platform: 'websocket',
-        reasons: ['Contains urgency keywords', 'Critical system issue'],
-        suggestedAction: 'Respond immediately - system critical'
+        reasons: ['Contains urgency keywords', 'Critical system issue', 'Multiple user reports'],
+        suggestedAction: 'Respond immediately - system critical',
+        tags: ['urgent', 'production', 'bug']
       },
       {
         id: 'demo-2',
         sender: 'mike_wilson',
         senderName: 'Mike Wilson',
-        content: 'Customer reported a critical bug in the payment system. Ticket #12345',
+        content: 'Customer reported a critical bug in the payment system. Ticket #12345. Revenue impact estimated at $50k/hour.',
         timestamp: new Date(Date.now() - 1000 * 60 * 45),
-        priority: 90,
+        priority: 92,
         roomId: 'chat4',
         roomName: 'Support Tickets',
         read: false,
         platform: 'websocket',
-        reasons: ['Critical system component', 'Customer impact'],
-        suggestedAction: 'Investigate immediately'
+        reasons: ['Critical system component', 'Customer impact', 'Revenue impact'],
+        suggestedAction: 'Investigate immediately - revenue at risk',
+        tags: ['critical', 'payment', 'customer']
       },
       {
         id: 'demo-3',
         sender: 'sarah_jones',
         senderName: 'Sarah Jones',
-        content: 'The client meeting has been moved to tomorrow at 2 PM. Please confirm your availability.',
+        content: 'The client meeting has been moved to tomorrow at 2 PM. Please confirm your availability ASAP.',
         timestamp: new Date(Date.now() - 1000 * 60 * 60),
         priority: 85,
         roomId: 'chat2',
         roomName: 'Marketing Discussion',
         read: false,
         platform: 'websocket',
-        reasons: ['Meeting scheduling', 'Client communication'],
-        suggestedAction: 'Confirm availability today'
+        reasons: ['Meeting scheduling', 'Client communication', 'Time-sensitive'],
+        suggestedAction: 'Confirm availability today',
+        tags: ['meeting', 'client', 'schedule']
       },
       {
         id: 'demo-4',
         sender: 'mike_wilson',
         senderName: 'Mike Wilson',
-        content: 'Code review needed for the new authentication module before deployment.',
+        content: 'Code review needed for the new authentication module before deployment. Deadline is EOD.',
         timestamp: new Date(Date.now() - 1000 * 60 * 120),
-        priority: 75,
+        priority: 78,
         roomId: 'chat1',
         roomName: 'Project Alpha Team',
-        read: true,
+        read: false,
         platform: 'websocket',
-        reasons: ['Deployment dependency', 'Code review required'],
-        suggestedAction: 'Schedule code review'
+        reasons: ['Deployment dependency', 'Code review required', 'Deadline today'],
+        suggestedAction: 'Schedule code review within 2 hours',
+        tags: ['code-review', 'deployment', 'deadline']
       },
       {
         id: 'demo-5',
         sender: 'jane_smith',
         senderName: 'Jane Smith',
-        content: 'Marketing campaign performance report is ready for review.',
+        content: 'Marketing campaign performance report is ready for review. Shows 25% increase in conversions!',
         timestamp: new Date(Date.now() - 1000 * 60 * 180),
-        priority: 60,
+        priority: 65,
         roomId: 'chat2',
         roomName: 'Marketing Discussion',
         read: false,
         platform: 'websocket',
-        reasons: ['Report available', 'Performance review'],
-        suggestedAction: 'Review when convenient'
+        reasons: ['Report available', 'Performance review', 'Positive results'],
+        suggestedAction: 'Review when convenient',
+        tags: ['report', 'marketing', 'analytics']
+      },
+      {
+        id: 'demo-6',
+        sender: 'alex_brown',
+        senderName: 'Alex Brown',
+        content: 'Security audit found 3 high-priority vulnerabilities. Need to patch before Friday.',
+        timestamp: new Date(Date.now() - 1000 * 60 * 240),
+        priority: 88,
+        roomId: 'chat5',
+        roomName: 'Security Team',
+        read: false,
+        platform: 'websocket',
+        reasons: ['Security issue', 'Multiple vulnerabilities', 'Deadline approaching'],
+        suggestedAction: 'Review vulnerabilities and create patch plan',
+        tags: ['security', 'urgent', 'vulnerability']
+      },
+      {
+        id: 'demo-7',
+        sender: 'emma_davis',
+        senderName: 'Emma Davis',
+        content: 'New feature request from top client: Real-time notifications. They want it in next sprint.',
+        timestamp: new Date(Date.now() - 1000 * 60 * 300),
+        priority: 72,
+        roomId: 'chat3',
+        roomName: 'Product Planning',
+        read: true,
+        platform: 'websocket',
+        reasons: ['Top client request', 'Feature request', 'Sprint planning'],
+        suggestedAction: 'Discuss in next planning meeting',
+        tags: ['feature', 'client', 'planning']
+      },
+      {
+        id: 'demo-8',
+        sender: 'david_lee',
+        senderName: 'David Lee',
+        content: 'Database backup failed last night. Need to investigate and re-run backup.',
+        timestamp: new Date(Date.now() - 1000 * 60 * 360),
+        priority: 82,
+        roomId: 'chat6',
+        roomName: 'DevOps',
+        read: false,
+        platform: 'websocket',
+        reasons: ['System maintenance', 'Backup failure', 'Data integrity'],
+        suggestedAction: 'Investigate and fix backup process',
+        tags: ['devops', 'backup', 'database']
       }
     ];
     
@@ -266,37 +337,193 @@ export default function PriorityInbox() {
     ));
   };
 
+  const markAsUnread = async (messageId: string) => {
+    setInbox(prev => prev.map(msg => 
+      msg.id === messageId ? { ...msg, read: false } : msg
+    ));
+  };
+
+  const archiveMessage = async (messageId: string) => {
+    setInbox(prev => prev.map(msg => 
+      msg.id === messageId ? { ...msg, archived: true } : msg
+    ));
+  };
+
+  const deleteMessage = async (messageId: string) => {
+    setInbox(prev => prev.filter(msg => msg.id !== messageId));
+  };
+
+  const snoozeMessage = async (messageId: string, hours: number) => {
+    const snoozeUntil = new Date(Date.now() + hours * 60 * 60 * 1000);
+    setInbox(prev => prev.map(msg => 
+      msg.id === messageId ? { ...msg, snoozedUntil } : msg
+    ));
+  };
+
+  const toggleSelectMessage = (messageId: string) => {
+    setSelectedMessages(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+      } else {
+        newSet.add(messageId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAll = () => {
+    setSelectedMessages(new Set(filteredMessages.map(m => m.id)));
+  };
+
+  const deselectAll = () => {
+    setSelectedMessages(new Set());
+  };
+
+  const bulkMarkAsRead = () => {
+    setInbox(prev => prev.map(msg => 
+      selectedMessages.has(msg.id) ? { ...msg, read: true } : msg
+    ));
+    deselectAll();
+  };
+
+  const bulkArchive = () => {
+    setInbox(prev => prev.map(msg => 
+      selectedMessages.has(msg.id) ? { ...msg, archived: true } : msg
+    ));
+    deselectAll();
+  };
+
+  const bulkDelete = () => {
+    setInbox(prev => prev.filter(msg => !selectedMessages.has(msg.id)));
+    deselectAll();
+  };
+
+  // Filtered and sorted messages
+  const filteredMessages = useMemo(() => {
+    return inbox
+      .filter(msg => {
+        // Archived filter
+        if (!filters.showArchived && msg.archived) return false;
+        
+        // Snoozed filter
+        if (msg.snoozedUntil && msg.snoozedUntil > new Date()) return false;
+        
+        // Priority filter
+        if (msg.priority < filters.minPriority || msg.priority > filters.maxPriority) return false;
+        
+        // Read status filter
+        if (filters.unreadOnly && msg.read) return false;
+        
+        // Time filter
+        const daysDiff = (Date.now() - msg.timestamp.getTime()) / (1000 * 60 * 60 * 24);
+        if (daysDiff > filters.daysBack) return false;
+        
+        // Platform filter
+        if (filters.platforms.length > 0 && !filters.platforms.includes(msg.platform || 'websocket')) return false;
+        
+        // Sender filter
+        if (filters.senders.length > 0 && !filters.senders.includes(msg.sender)) return false;
+        
+        // Search query
+        if (filters.searchQuery) {
+          const query = filters.searchQuery.toLowerCase();
+          const matchesContent = msg.content.toLowerCase().includes(query);
+          const matchesSender = (msg.senderName || msg.sender).toLowerCase().includes(query);
+          const matchesRoom = msg.roomName.toLowerCase().includes(query);
+          if (!matchesContent && !matchesSender && !matchesRoom) return false;
+        }
+        
+        // Tags filter
+        if (filters.tags.length > 0 && msg.tags) {
+          const hasTag = filters.tags.some(tag => msg.tags?.includes(tag));
+          if (!hasTag) return false;
+        }
+        
+        return true;
+      })
+      .sort((a, b) => {
+        switch (filters.sortBy) {
+          case 'priority':
+            return filters.sortOrder === 'desc' ? b.priority - a.priority : a.priority - b.priority;
+          case 'timestamp':
+            return filters.sortOrder === 'desc' 
+              ? b.timestamp.getTime() - a.timestamp.getTime()
+              : a.timestamp.getTime() - b.timestamp.getTime();
+          case 'sender':
+            return filters.sortOrder === 'desc' 
+              ? b.sender.localeCompare(a.sender)
+              : a.sender.localeCompare(b.sender);
+          default:
+            return b.priority - a.priority;
+        }
+      });
+  }, [inbox, filters]);
+
+  // Group messages by priority if enabled
+  const groupedMessages = useMemo(() => {
+    if (!settings.groupByPriority) return { all: filteredMessages };
+    
+    return {
+      critical: filteredMessages.filter(m => m.priority >= settings.priorityThresholds.critical),
+      high: filteredMessages.filter(m => m.priority >= settings.priorityThresholds.high && m.priority < settings.priorityThresholds.critical),
+      medium: filteredMessages.filter(m => m.priority >= settings.priorityThresholds.medium && m.priority < settings.priorityThresholds.high),
+      low: filteredMessages.filter(m => m.priority < settings.priorityThresholds.medium)
+    };
+  }, [filteredMessages, settings.groupByPriority, settings.priorityThresholds]);
+
+  // Statistics
+  const stats = useMemo(() => ({
+    total: inbox.length,
+    unread: inbox.filter(m => !m.read).length,
+    critical: inbox.filter(m => m.priority >= settings.priorityThresholds.critical).length,
+    high: inbox.filter(m => m.priority >= settings.priorityThresholds.high && m.priority < settings.priorityThresholds.critical).length,
+    medium: inbox.filter(m => m.priority >= settings.priorityThresholds.medium && m.priority < settings.priorityThresholds.high).length,
+    archived: inbox.filter(m => m.archived).length,
+    snoozed: inbox.filter(m => m.snoozedUntil && m.snoozedUntil > new Date()).length
+  }), [inbox, settings.priorityThresholds]);
+
   return (
     <Layout>
-      <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
-        {/* Header */}
-        <div style={{ marginBottom: '32px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+      <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
+        {/* Enhanced Header with Gradient */}
+        <div style={{ 
+          marginBottom: '32px',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          borderRadius: '16px',
+          padding: '32px',
+          boxShadow: '0 10px 40px rgba(102, 126, 234, 0.3)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <Link to="/dashboard" style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
-                color: 'var(--text-secondary)',
-                textDecoration: 'none'
+                color: 'white',
+                textDecoration: 'none',
+                opacity: 0.9
               }}>
-                <ArrowLeft size={20} />
+                <ArrowLeft size={24} />
               </Link>
-              <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>
-                Priority Inbox
+              <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: 'white', margin: 0 }}>
+                📥 Priority Inbox
               </h1>
               {refreshing && (
                 <div style={{ 
                   fontSize: '12px', 
-                  color: 'var(--text-secondary)',
+                  color: 'white',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '4px'
+                  gap: '6px',
+                  background: 'rgba(255,255,255,0.2)',
+                  padding: '4px 12px',
+                  borderRadius: '12px'
                 }}>
                   <div style={{ 
                     width: '12px', 
                     height: '12px', 
-                    border: '2px solid var(--border-medium)',
-                    borderTop: '2px solid var(--bubble-sent)',
+                    border: '2px solid rgba(255,255,255,0.3)',
+                    borderTop: '2px solid white',
                     borderRadius: '50%',
                     animation: 'spin 1s linear infinite'
                   }} />
@@ -305,138 +532,344 @@ export default function PriorityInbox() {
               )}
             </div>
             
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {/* View Mode Selector */}
+              <select
+                value={viewMode}
+                onChange={(e) => setViewMode(e.target.value as any)}
+                style={{
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'rgba(255,255,255,0.2)',
+                  color: 'white',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  backdropFilter: 'blur(10px)'
+                }}
+              >
+                <option value="list">📋 List View</option>
+                <option value="compact">📑 Compact View</option>
+                <option value="grouped">📊 Grouped View</option>
+              </select>
+
               <button
                 onClick={() => loadPriorityInbox()}
                 disabled={loading}
                 style={{
-                  padding: '8px 16px',
-                  border: '1px solid var(--border-medium)',
+                  padding: '10px 16px',
                   borderRadius: '8px',
-                  background: 'var(--bg-primary)',
-                  color: 'var(--text-primary)',
+                  border: 'none',
+                  background: 'rgba(255,255,255,0.2)',
+                  color: 'white',
                   cursor: loading ? 'not-allowed' : 'pointer',
                   fontSize: '14px',
+                  fontWeight: '500',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px'
+                  gap: '6px',
+                  backdropFilter: 'blur(10px)'
                 }}
               >
-                🔄 Refresh
+                <RefreshCw size={16} /> Refresh
               </button>
               
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 style={{
-                  padding: '8px 16px',
-                  border: '1px solid var(--border-medium)',
+                  padding: '10px 16px',
                   borderRadius: '8px',
-                  background: showFilters ? 'var(--bubble-sent)' : 'var(--bg-primary)',
-                  color: showFilters ? 'white' : 'var(--text-primary)',
+                  border: 'none',
+                  background: showFilters ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.2)',
+                  color: 'white',
                   cursor: 'pointer',
                   fontSize: '14px',
+                  fontWeight: '500',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px'
+                  gap: '6px',
+                  backdropFilter: 'blur(10px)'
                 }}
               >
-                🔍 Filters
+                <Filter size={16} /> Filters
               </button>
               
               <button
                 onClick={() => setShowSettings(!showSettings)}
                 style={{
-                  padding: '8px 16px',
-                  border: '1px solid var(--border-medium)',
+                  padding: '10px 16px',
                   borderRadius: '8px',
-                  background: showSettings ? 'var(--bubble-sent)' : 'var(--bg-primary)',
-                  color: showSettings ? 'white' : 'var(--text-primary)',
+                  border: 'none',
+                  background: showSettings ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.2)',
+                  color: 'white',
                   cursor: 'pointer',
                   fontSize: '14px',
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  backdropFilter: 'blur(10px)'
+                }}
+              >
+                <Settings size={16} /> Settings
+              </button>
+            </div>
+          </div>
+
+          {/* Search Bar */}
+          <div style={{ position: 'relative', marginBottom: '16px' }}>
+            <Search size={20} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.7)' }} />
+            <input
+              type="text"
+              placeholder="Search messages, senders, or rooms..."
+              value={filters.searchQuery}
+              onChange={(e) => setFilters({...filters, searchQuery: e.target.value})}
+              style={{
+                width: '100%',
+                padding: '12px 12px 12px 44px',
+                borderRadius: '12px',
+                border: 'none',
+                background: 'rgba(255,255,255,0.2)',
+                color: 'white',
+                fontSize: '16px',
+                backdropFilter: 'blur(10px)'
+              }}
+            />
+            {filters.searchQuery && (
+              <button
+                onClick={() => setFilters({...filters, searchQuery: ''})}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: 'white',
+                  cursor: 'pointer',
+                  padding: '4px'
+                }}
+              >
+                <X size={20} />
+              </button>
+            )}
+          </div>
+
+          <p style={{ color: 'rgba(255,255,255,0.9)', fontSize: '16px', margin: 0 }}>
+            {filteredMessages.length} messages • {stats.unread} unread • {stats.critical} critical
+          </p>
+        </div>
+
+        {/* Bulk Actions Bar */}
+        {selectedMessages.size > 0 && (
+          <div style={{
+            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+            borderRadius: '12px',
+            padding: '16px 24px',
+            marginBottom: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: '0 4px 20px rgba(16, 185, 129, 0.3)'
+          }}>
+            <div style={{ color: 'white', fontSize: '16px', fontWeight: '500' }}>
+              {selectedMessages.size} message{selectedMessages.size > 1 ? 's' : ''} selected
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={bulkMarkAsRead}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'rgba(255,255,255,0.2)',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px'
                 }}
               >
-                ⚙️ Settings
+                <CheckCircle size={16} /> Mark as Read
+              </button>
+              <button
+                onClick={bulkArchive}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'rgba(255,255,255,0.2)',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Archive size={16} /> Archive
+              </button>
+              <button
+                onClick={bulkDelete}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'rgba(239, 68, 68, 0.3)',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Trash2 size={16} /> Delete
+              </button>
+              <button
+                onClick={deselectAll}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'rgba(255,255,255,0.2)',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+              >
+                <X size={16} />
               </button>
             </div>
           </div>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '16px' }}>
-            Messages that need your attention, ranked by importance
-          </p>
-        </div>
+        )}
 
-        {/* Stats Cards */}
+        {/* Enhanced Stats Cards */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
           gap: '16px',
           marginBottom: '32px'
         }}>
           <div style={{
-            background: 'var(--bg-secondary)',
+            background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
             borderRadius: '12px',
             padding: '20px',
-            boxShadow: 'var(--shadow-sm)'
+            boxShadow: '0 4px 20px rgba(239, 68, 68, 0.3)',
+            color: 'white'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-              <div style={{
-                padding: '8px',
-                borderRadius: '8px',
-                background: 'rgba(239, 68, 68, 0.1)',
-                color: '#ef4444'
-              }}>
-                <AlertTriangle size={20} />
-              </div>
-              <h3 style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0 }}>Critical</h3>
+              <AlertTriangle size={24} />
+              <h3 style={{ fontSize: '14px', margin: 0, opacity: 0.9 }}>Critical</h3>
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-              {inbox.filter(m => m.priority >= settings.priorityThresholds.critical).length}
+            <div style={{ fontSize: '32px', fontWeight: 'bold' }}>
+              {stats.critical}
             </div>
           </div>
 
           <div style={{
-            background: 'var(--bg-secondary)',
+            background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
             borderRadius: '12px',
             padding: '20px',
-            boxShadow: 'var(--shadow-sm)'
+            boxShadow: '0 4px 20px rgba(245, 158, 11, 0.3)',
+            color: 'white'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-              <div style={{
-                padding: '8px',
-                borderRadius: '8px',
-                background: 'rgba(245, 158, 11, 0.1)',
-                color: '#f59e0b'
-              }}>
-                <Clock size={20} />
-              </div>
-              <h3 style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0 }}>High Priority</h3>
+              <Clock size={24} />
+              <h3 style={{ fontSize: '14px', margin: 0, opacity: 0.9 }}>High</h3>
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-              {inbox.filter(m => m.priority >= settings.priorityThresholds.high && m.priority < settings.priorityThresholds.critical).length}
+            <div style={{ fontSize: '32px', fontWeight: 'bold' }}>
+              {stats.high}
             </div>
           </div>
 
           <div style={{
-            background: 'var(--bg-secondary)',
+            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
             borderRadius: '12px',
             padding: '20px',
-            boxShadow: 'var(--shadow-sm)'
+            boxShadow: '0 4px 20px rgba(16, 185, 129, 0.3)',
+            color: 'white'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-              <div style={{
-                padding: '8px',
-                borderRadius: '8px',
-                background: 'rgba(16, 185, 129, 0.1)',
-                color: '#10b981'
-              }}>
-                <Star size={20} />
-              </div>
-              <h3 style={{ fontSize: '14px', color: 'var(--text-secondary)', margin: 0 }}>Total Priority</h3>
+              <Star size={24} />
+              <h3 style={{ fontSize: '14px', margin: 0, opacity: 0.9 }}>Total</h3>
             </div>
-            <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-              {inbox.length}
+            <div style={{ fontSize: '32px', fontWeight: 'bold' }}>
+              {stats.total}
+            </div>
+          </div>
+
+          <div style={{
+            background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+            borderRadius: '12px',
+            padding: '20px',
+            boxShadow: '0 4px 20px rgba(59, 130, 246, 0.3)',
+            color: 'white'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+              <Bell size={24} />
+              <h3 style={{ fontSize: '14px', margin: 0, opacity: 0.9 }}>Unread</h3>
+            </div>
+            <div style={{ fontSize: '32px', fontWeight: 'bold' }}>
+              {stats.unread}
+            </div>
+          </div>
+
+          <div style={{
+            background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+            borderRadius: '12px',
+            padding: '20px',
+            boxShadow: '0 4px 20px rgba(139, 92, 246, 0.3)',
+            color: 'white'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+              <Archive size={24} />
+              <h3 style={{ fontSize: '14px', margin: 0, opacity: 0.9 }}>Archived</h3>
+            </div>
+            <div style={{ fontSize: '32px', fontWeight: 'bold' }}>
+              {stats.archived}
+            </div>
+          </div>
+
+          <div style={{
+            background: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
+            borderRadius: '12px',
+            padding: '20px',
+            boxShadow: '0 4px 20px rgba(236, 72, 153, 0.3)',
+            color: 'white'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+              <Clock size={24} />
+              <h3 style={{ fontSize: '14px', margin: 0, opacity: 0.9 }}>Snoozed</h3>
+            </div>
+            <div style={{ fontSize: '32px', fontWeight: 'bold' }}>
+              {stats.snoozed}
+            </div>
+          </div>
+
+          <div style={{
+            background: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)',
+            borderRadius: '12px',
+            padding: '20px',
+            boxShadow: '0 4px 20px rgba(6, 182, 212, 0.3)',
+            color: 'white'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+              <Calendar size={24} />
+              <h3 style={{ fontSize: '14px', margin: 0, opacity: 0.9 }}>Today</h3>
+            </div>
+            <div style={{ fontSize: '32px', fontWeight: 'bold' }}>
+              {inbox.filter(m => {
+                const today = new Date();
+                const msgDate = new Date(m.timestamp);
+                return msgDate.toDateString() === today.toDateString();
+              }).length}
             </div>
           </div>
         </div>

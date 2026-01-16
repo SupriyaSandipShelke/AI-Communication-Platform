@@ -28,13 +28,24 @@ export default function Layout({ children }: LayoutProps) {
           padding: '12px 16px',
           borderRadius: '8px',
           textDecoration: 'none',
-          color: isActive ? '#667eea' : 'white',
-          background: isActive ? 'rgba(255,255,255,0.2)' : 'transparent',
-          transition: 'background 0.2s',
-          fontWeight: '500'
+          color: isActive ? 'white' : 'rgba(255,255,255,0.8)',
+          background: isActive ? 'rgba(102, 126, 234, 0.3)' : 'transparent',
+          transition: 'background 0.2s, color 0.2s',
+          fontWeight: isActive ? '600' : '500',
+          border: isActive ? '1px solid rgba(102, 126, 234, 0.5)' : '1px solid transparent'
         }}
-        onMouseEnter={(e) => !isActive && (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
-        onMouseLeave={(e) => !isActive && (e.currentTarget.style.background = 'transparent')}
+        onMouseEnter={(e) => {
+          if (!isActive) {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+            e.currentTarget.style.color = 'white';
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isActive) {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = 'rgba(255,255,255,0.8)';
+          }
+        }}
       >
         <Icon size={20} />
         <span>{label}</span>
