@@ -16,6 +16,8 @@ import { GroupAIService } from './services/GroupAIService.js';
 import { ScheduledSummariesService } from './services/ScheduledSummariesService.js';
 import { NotificationService } from './services/NotificationService.js';
 import { WebRTCSignalingService } from './services/WebRTCSignalingService.js';
+import { TelegramAdapter } from './adapters/TelegramAdapter.js';
+import { InstagramAdapter } from './adapters/InstagramAdapter.js';
 import { messageRouter } from './routes/messages.js';
 import { authRouter } from './routes/auth.js';
 import { analyticsRouter } from './routes/analytics.js';
@@ -29,6 +31,8 @@ import { chatRouter } from './routes/chat.js';
 import { scheduledSummariesRouter } from './routes/scheduledSummaries.js';
 import { whatsappChatRouter } from './routes/whatsappChat.js';
 import { whatsappFeaturesRouter } from './routes/whatsappFeatures.js';
+import { telegramRouter } from './routes/telegram.js';
+import { instagramRouter } from './routes/instagram.js';
 
 dotenv.config();
 
@@ -63,6 +67,10 @@ const scheduledSummariesService = new ScheduledSummariesService(aiService, dbSer
 const notificationService = new NotificationService(dbService);
 const webrtcSignaling = new WebRTCSignalingService();
 
+// Initialize platform adapters
+const telegramAdapter = new TelegramAdapter();
+const instagramAdapter = new InstagramAdapter();
+
 // Make services available globally
 app.locals.dbService = dbService;
 app.locals.aiService = aiService;
@@ -77,6 +85,8 @@ app.locals.groupAIService = groupAIService;
 app.locals.scheduledSummariesService = scheduledSummariesService;
 app.locals.notificationService = notificationService;
 app.locals.webrtcSignaling = webrtcSignaling;
+app.locals.telegramAdapter = telegramAdapter;
+app.locals.instagramAdapter = instagramAdapter;
 app.locals.wss = wss;
 
 // Routes
@@ -93,6 +103,8 @@ app.use('/api/chat', chatRouter);
 app.use('/api/summaries', scheduledSummariesRouter);
 app.use('/api/whatsapp', whatsappChatRouter);
 app.use('/api/whatsapp', whatsappFeaturesRouter);
+app.use('/api/telegram', telegramRouter);
+app.use('/api/instagram', instagramRouter);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -101,6 +113,8 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     services: {
       matrix: matrixService.isConnected(),
+      telegram: telegramAdapter.isConnected(),
+      instagram: instagramAdapter.isConnected(),
       database: true,
       ai: aiService.isConfigured()
     }
@@ -704,6 +718,19 @@ async function startServer() {
     }).catch((err) => {
       console.warn('⚠️  Matrix client running in demo mode:', err.message);
     });
+
+    // Initialize platform adapters (non-blocking)
+    telegramAdapter.connect().then(() => {
+      console.log('✅ Telegram adapter initialized');
+    }).catch((err) => {
+      console.warn('⚠️  Telegram adapter running in demo mode:', err.message);
+    });
+
+    instagramAdapter.connect().then(() => {
+      console.log('✅ Instagram adapter initialized');
+    }).catch((err) => {
+      console.warn('⚠️  Instagram adapter running in demo mode:', err.message);
+    });
     
     // Setup Matrix message listener
     matrixService.onMessage(async (event) => {
@@ -737,6 +764,81 @@ async function startServer() {
           const autoResponse = await aiService.generateAutoResponse(event.getContent().body);
           if (autoResponse.shouldRespond && autoResponse.message) {
             await matrixService.sendMessage(event.getRoomId(), autoResponse.message);
+          }
+        }
+      }
+    });
+    
+    // Setup Telegram message listener
+    telegramAdapter.onMessage(async (message) => {
+      // Store message in database
+      await dbService.saveMessage({
+        platform: 'telegram',
+        roomId: message.roomId,
+        sender: message.sender,
+        content: message.content,
+        timestamp: message.timestamp,
+        userId: message.sender
+      });
+      
+      // Broadcast to all WebSocket clients
+      wss.clients.forEach((client) => {
+        if (client.readyState === 1) {
+          client.send(JSON.stringify({
+            type: 'new_message',
+            platform: 'telegram',
+            message: message
+          }));
+        }
+      });
+      
+      // AI processing for priority tagging
+      if (process.env.ENABLE_AI_SUMMARY === 'true') {
+        const priority = await aiService.classifyPriority(message.content);
+        // Note: Telegram messages don't have traditional message IDs like Matrix
+        
+        // Auto-respond if needed
+        if (process.env.ENABLE_AUTO_RESPONSE === 'true' && priority === 'high') {
+          const autoResponse = await aiService.generateAutoResponse(message.content);
+          if (autoResponse.shouldRespond && autoResponse.message) {
+            await telegramAdapter.sendMessage(message.roomId, autoResponse.message);
+          }
+        }
+      }
+    });
+
+    // Setup Instagram message listener
+    instagramAdapter.onMessage(async (message) => {
+      // Store message in database
+      await dbService.saveMessage({
+        platform: 'instagram',
+        roomId: message.roomId,
+        sender: message.sender,
+        content: message.content,
+        timestamp: message.timestamp,
+        userId: message.sender
+      });
+      
+      // Broadcast to all WebSocket clients
+      wss.clients.forEach((client) => {
+        if (client.readyState === 1) {
+          client.send(JSON.stringify({
+            type: 'new_message',
+            platform: 'instagram',
+            message: message
+          }));
+        }
+      });
+      
+      // AI processing for priority tagging
+      if (process.env.ENABLE_AI_SUMMARY === 'true') {
+        const priority = await aiService.classifyPriority(message.content);
+        
+        // Auto-respond if needed
+        if (process.env.ENABLE_AUTO_RESPONSE === 'true' && priority === 'high') {
+          const autoResponse = await aiService.generateAutoResponse(message.content);
+          if (autoResponse.shouldRespond && autoResponse.message) {
+            await instagramAdapter.sendMessage(message.roomId, autoResponse.message);
           }
         }
       }

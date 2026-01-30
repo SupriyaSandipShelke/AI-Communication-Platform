@@ -267,28 +267,81 @@ export default function LandingPage() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <Link
-            to="/login"
-            style={{
-              padding: '8px 24px',
-              background: 'rgba(255,255,255,0.2)',
-              color: 'white',
-              textDecoration: 'none',
-              borderRadius: '8px',
-              border: '1px solid rgba(255,255,255,0.3)',
-              fontSize: '14px',
-              fontWeight: '500',
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.3)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
-            }}
-          >
-            SIGN IN
-          </Link>
+          {/* Check if user is already logged in */}
+          {localStorage.getItem('auth_token') ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '14px' }}>
+                Welcome, {localStorage.getItem('username')}!
+              </span>
+              <Link
+                to="/dashboard"
+                style={{
+                  padding: '8px 24px',
+                  background: 'rgba(74, 222, 128, 0.2)',
+                  color: 'white',
+                  textDecoration: 'none',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(74, 222, 128, 0.3)',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(74, 222, 128, 0.3)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(74, 222, 128, 0.2)';
+                }}
+              >
+                DASHBOARD
+              </Link>
+              <Link
+                to="/login"
+                style={{
+                  padding: '8px 24px',
+                  background: 'rgba(255,255,255,0.2)',
+                  color: 'white',
+                  textDecoration: 'none',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.3)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
+                }}
+              >
+                SWITCH USER
+              </Link>
+            </div>
+          ) : (
+            <Link
+              to="/login"
+              style={{
+                padding: '8px 24px',
+                background: 'rgba(255,255,255,0.2)',
+                color: 'white',
+                textDecoration: 'none',
+                borderRadius: '8px',
+                border: '1px solid rgba(255,255,255,0.3)',
+                fontSize: '14px',
+                fontWeight: '500',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.3)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
+              }}
+            >
+              SIGN IN
+            </Link>
+          )}
 
           {/* Mobile Menu Button */}
           <button

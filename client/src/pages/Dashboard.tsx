@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { MessageSquare, TrendingUp, Activity, AlertCircle, Home, BarChart, Settings as SettingsIcon, LogOut, Users, Bell, Clock, Sparkles } from 'lucide-react';
 import Layout from '../components/Layout';
 import AIChatbot from '../components/AIChatbot';
+import PlatformSelector from '../components/PlatformSelector';
+import { activityTracker } from '../services/ActivityTracker';
 
 export default function Dashboard() {
   const [summary, setSummary] = useState<any>(null);
@@ -13,64 +15,81 @@ export default function Dashboard() {
     low: 0
   });
   const [loading, setLoading] = useState(true);
+  const [selectedPlatform, setSelectedPlatform] = useState('whatsapp');
 
   useEffect(() => {
     loadData();
+    
+    // Add some demo activities if none exist (for demonstration)
+    const todaysActivities = activityTracker.getTodaysActivities();
+    if (todaysActivities.length === 0) {
+      // Add some sample activities to demonstrate the feature
+      activityTracker.trackMessageSent('whatsapp', 'John Doe', 'text');
+      activityTracker.trackMessageSent('telegram', 'Project Team', 'text');
+      activityTracker.trackGroupCreated('whatsapp', 'Family Group', 5);
+      activityTracker.trackUserAdded('instagram', 'alice@example.com');
+      activityTracker.trackCallMade('whatsapp', 'Mom', 'voice');
+      activityTracker.trackFileShared('telegram', 'project-report.pdf', 'Project Team');
+      
+      // Reload data to show the new activities
+      setTimeout(() => loadData(), 100);
+    }
   }, []);
 
   const loadData = async () => {
     try {
       const token = localStorage.getItem('auth_token');
       
-      // Load today's summary
-      const summaryRes = await fetch('/api/messages/summary/daily', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const summaryData = await summaryRes.json();
-      if (summaryData.success) {
-        setSummary(summaryData.summary);
-      } else {
-        // Demo summary data
-        setSummary({
-          summary: "Today you've been active across multiple platforms with a focus on project coordination and team communication. Most conversations were productive with quick response times.",
-          keyTopics: ["Project Updates", "Team Meetings", "Client Feedback", "Technical Discussion"],
-          actionItems: ["Follow up on client proposal", "Schedule team meeting for next week", "Review technical specifications"]
-        });
+      // Get today's summary from activity tracker
+      let todaysSummary = activityTracker.getDailySummary();
+      
+      if (!todaysSummary) {
+        // Generate new summary if none exists
+        todaysSummary = activityTracker.generateTodaysSummary();
       }
 
-      // Load priority stats
-      const priorityRes = await fetch('/api/analytics/priority', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const priorityData = await priorityRes.json();
-      if (priorityData.success) {
-        setStats({
-          total: priorityData.counts.high + priorityData.counts.medium + priorityData.counts.low,
-          high: priorityData.counts.high,
-          medium: priorityData.counts.medium,
-          low: priorityData.counts.low
+      setSummary(todaysSummary);
+
+      // Get activity stats for priority calculation
+      const activityStats = activityTracker.getActivityStats(1); // Today's stats
+      
+      // Load priority stats from API or use activity-based stats
+      try {
+        const priorityRes = await fetch('/api/analytics/priority', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
         });
-      } else {
-        // Demo stats data
+        const priorityData = await priorityRes.json();
+        if (priorityData.success) {
+          setStats({
+            total: priorityData.counts.high + priorityData.counts.medium + priorityData.counts.low,
+            high: priorityData.counts.high,
+            medium: priorityData.counts.medium,
+            low: priorityData.counts.low
+          });
+        } else {
+          throw new Error('API not available');
+        }
+      } catch (error) {
+        // Use activity-based stats as fallback
+        const messagesSent = activityStats.activityTypes.message_sent || 0;
+        const callsMade = activityStats.activityTypes.call_made || 0;
+        const groupsCreated = activityStats.activityTypes.group_created || 0;
+        const filesShared = activityStats.activityTypes.file_shared || 0;
+        
         setStats({
-          total: 147,
-          high: 8,
-          medium: 34,
-          low: 105
+          total: activityStats.totalActivities,
+          high: callsMade + groupsCreated, // Calls and group creation are high priority
+          medium: filesShared + Math.floor(messagesSent * 0.3), // File sharing and some messages are medium
+          low: Math.floor(messagesSent * 0.7) // Most messages are low priority
         });
       }
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
-      // Fallback demo data
-      setSummary({
-        summary: "Welcome to your communication hub! Start by adding users and creating groups to see your activity summary here.",
-        keyTopics: ["Getting Started", "User Management", "Group Creation"],
-        actionItems: ["Add your first contact", "Create a group chat", "Post a status update"]
-      });
+      // Fallback to empty summary
+      const emptySummary = activityTracker.generateTodaysSummary();
+      setSummary(emptySummary);
       setStats({
         total: 0,
         high: 0,
@@ -161,8 +180,15 @@ export default function Dashboard() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px', marginBottom: '32px' }}>
-              {/* Left Column - Stats and Summary */}
+              {/* Left Column - Platform Selector and Stats */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                {/* Platform Selector */}
+                <PlatformSelector 
+                  selectedPlatform={selectedPlatform}
+                  onPlatformChange={setSelectedPlatform}
+                  showTitle={true}
+                />
+
                 {summary && (
                   <div style={{
                     background: 'var(--bg-primary)',
@@ -179,9 +205,32 @@ export default function Dashboard() {
                       }}>
                         <Sparkles size={20} />
                       </div>
-                      <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>
-                        Today's Summary
+                      <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0, flex: 1 }}>
+                        Today's Summary - {selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1)}
                       </h2>
+                      <button
+                        onClick={() => {
+                          const newSummary = activityTracker.generateTodaysSummary();
+                          setSummary(newSummary);
+                        }}
+                        style={{
+                          padding: '8px 16px',
+                          background: 'var(--accent-primary)',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                        title="Refresh Summary"
+                      >
+                        <Activity size={14} />
+                        Refresh
+                      </button>
                     </div>
                     <p style={{ color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '20px' }}>
                       {summary.summary}
@@ -228,6 +277,8 @@ export default function Dashboard() {
                     )}
                   </div>
                 )}
+
+
             
                 {/* Quick Links */}
                 <div style={{
@@ -235,7 +286,7 @@ export default function Dashboard() {
                   gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
                   gap: '16px'
                 }}>
-                  <Link to="/messages" style={{ textDecoration: 'none' }}>
+                  <Link to={`/messages?platform=${selectedPlatform}`} style={{ textDecoration: 'none' }}>
                     <div style={{
                       background: 'var(--bg-primary)',
                       borderRadius: '12px',
@@ -258,11 +309,11 @@ export default function Dashboard() {
                           <MessageSquare size={20} />
                         </div>
                         <h3 style={{ fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)', margin: 0 }}>
-                          All Messages
+                          {selectedPlatform.charAt(0).toUpperCase() + selectedPlatform.slice(1)} Messages
                         </h3>
                       </div>
                       <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
-                        Access unified messages from all platforms
+                        Access messages from {selectedPlatform}
                       </p>
                     </div>
                   </Link>
@@ -429,8 +480,9 @@ export default function Dashboard() {
                 </div>
               </div>
             
-              {/* Right Column - AI Assistant */}
-              <div>
+              {/* Right Column - AI Assistant and Recent Activities */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                {/* AI Assistant */}
                 <div style={{
                   background: 'var(--bg-primary)',
                   borderRadius: '12px',
@@ -458,6 +510,73 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <AIChatbot userId={localStorage.getItem('username') || undefined} />
+                </div>
+
+                {/* Recent Activities */}
+                <div style={{
+                  background: 'var(--bg-primary)',
+                  borderRadius: '12px',
+                  padding: '24px',
+                  boxShadow: 'var(--shadow-md)',
+                  border: '1px solid var(--border-light)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                    <div style={{
+                      padding: '8px',
+                      borderRadius: '8px',
+                      background: 'rgba(16, 185, 129, 0.1)',
+                      color: '#10b981'
+                    }}>
+                      <Clock size={20} />
+                    </div>
+                    <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--text-primary)', margin: 0 }}>
+                      Recent Activities
+                    </h2>
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '300px', overflowY: 'auto' }}>
+                    {activityTracker.getTodaysActivities().slice(-5).reverse().map((activity, index) => (
+                      <div key={activity.id} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px',
+                        background: 'var(--bg-secondary)',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-light)'
+                      }}>
+                        <div style={{
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          background: activity.platform === 'whatsapp' ? '#25D366' : 
+                                     activity.platform === 'telegram' ? '#0088cc' :
+                                     activity.platform === 'instagram' ? '#E4405F' :
+                                     activity.platform === 'slack' ? '#4A154B' :
+                                     activity.platform === 'matrix' ? '#0DBD8B' : '#3b82f6'
+                        }} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: '500' }}>
+                            {activity.description}
+                          </div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                            {activity.platform.charAt(0).toUpperCase() + activity.platform.slice(1)} • {activity.timestamp.toLocaleTimeString()}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {activityTracker.getTodaysActivities().length === 0 && (
+                      <div style={{ 
+                        textAlign: 'center', 
+                        color: 'var(--text-secondary)', 
+                        padding: '20px',
+                        fontStyle: 'italic'
+                      }}>
+                        No activities today. Start messaging to see your activity here!
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

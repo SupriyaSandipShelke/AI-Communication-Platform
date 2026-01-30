@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Authentication</title>
+</head>
+<body>
+    <h1>Clear Authentication Data</h1>
+    <button onclick="clearAuth()">Clear All Auth Data</button>
+    <p id="status"></p>
+    
+    <script>
+        function clearAuth() {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('username');
+            localStorage.removeItem('user_id');
+            document.getElementById('status').innerHTML = 'Authentication data cleared! You can now test the login flow.';
+        }
+        
+        // Show current auth status
+        const token = localStorage.getItem('auth_token');
+        const username = localStorage.getItem('username');
+        
+        if (token) {
+            document.getElementById('status').innerHTML = `Currently logged in as: ${username || 'Unknown'}`;
+        } else {
+            document.getElementById('status').innerHTML = 'No authentication data found.';
+        }
+    </script>
+</body>
+</html>

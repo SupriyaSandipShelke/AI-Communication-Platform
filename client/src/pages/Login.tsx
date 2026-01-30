@@ -4,15 +4,114 @@ import { Lock } from 'lucide-react';
 
 interface LoginProps {
   onLogin: () => void;
+  onLogout?: () => void;
+  isAuthenticated?: boolean;
 }
 
-export default function Login({ onLogin }: LoginProps) {
+export default function Login({ onLogin, onLogout, isAuthenticated }: LoginProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isRegister, setIsRegister] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  // If user is already authenticated, show options to continue or logout
+  if (isAuthenticated) {
+    return (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh',
+        padding: '20px'
+      }}>
+        <div style={{
+          background: 'white',
+          borderRadius: '16px',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+          padding: '48px',
+          width: '100%',
+          maxWidth: '450px',
+          textAlign: 'center'
+        }}>
+          <div style={{
+            display: 'inline-flex',
+            padding: '12px',
+            background: 'linear-gradient(135deg, #4ade80 0%, #22c55e 100%)',
+            borderRadius: '12px',
+            marginBottom: '16px'
+          }}>
+            <Lock size={32} color="white" />
+          </div>
+          <h1 style={{
+            fontSize: '28px',
+            fontWeight: 'bold',
+            color: '#1f2937',
+            marginBottom: '8px'
+          }}>
+            Welcome Back!
+          </h1>
+          <p style={{ color: '#6b7280', fontSize: '16px', marginBottom: '32px' }}>
+            You're already signed in as <strong>{localStorage.getItem('username')}</strong>
+          </p>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <button
+              onClick={() => navigate('/dashboard')}
+              style={{
+                width: '100%',
+                padding: '14px',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '16px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'transform 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+              onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            >
+              Continue to Dashboard
+            </button>
+            
+            <button
+              onClick={() => {
+                if (onLogout) onLogout();
+                setUsername('');
+                setPassword('');
+                setError('');
+              }}
+              style={{
+                width: '100%',
+                padding: '14px',
+                background: 'transparent',
+                color: '#6b7280',
+                border: '1px solid #d1d5db',
+                borderRadius: '8px',
+                fontSize: '16px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#f3f4f6';
+                e.currentTarget.style.color = '#374151';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = '#6b7280';
+              }}
+            >
+              Sign Out & Login as Different User
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleDemoLogin = async (demoUsername: string) => {
     setError('');

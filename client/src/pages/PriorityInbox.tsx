@@ -131,38 +131,45 @@ export default function PriorityInbox() {
           'Content-Type': 'application/json'
         }
       });
-      const data = await response.json();
       
-      if (data.success) {
-        // Transform the data to match our interface
-        const transformedInbox = data.inbox.map((item: any) => ({
-          id: item.messageId || item.id || `msg-${Math.random()}`,
-          sender: item.sender || 'Unknown',
-          senderName: item.senderName || item.sender || 'Unknown User',
-          content: item.content || item.message || 'No content',
-          timestamp: new Date(item.timestamp || item.createdAt),
-          priority: item.priorityScore || item.priority || item.score || 50,
-          roomId: item.roomId || item.chatId || 'unknown',
-          roomName: item.roomName || item.chatName || 'General',
-          read: item.isRead || item.read || false,
-          platform: item.platform || 'websocket',
-          reasons: item.reasons || [],
-          suggestedAction: item.suggestedAction || 'Review message'
-        }));
+      if (response.ok) {
+        const data = await response.json();
         
-        setInbox(transformedInbox);
-        
-        // Show notification for new high-priority messages if enabled
-        if (silent && settings.notifications) {
-          const newCriticalMessages = transformedInbox.filter(
-            (msg: PriorityMessage) => msg.priority >= settings.priorityThresholds.critical && !msg.read
-          );
+        if (data.success && data.inbox) {
+          // Transform the data to match our interface
+          const transformedInbox = data.inbox.map((item: any) => ({
+            id: item.messageId || item.id || `msg-${Math.random()}`,
+            sender: item.sender || 'Unknown',
+            senderName: item.senderName || item.sender || 'Unknown User',
+            content: item.content || item.message || 'No content',
+            timestamp: new Date(item.timestamp || item.createdAt),
+            priority: item.priorityScore || item.priority || item.score || 50,
+            roomId: item.roomId || item.chatId || 'unknown',
+            roomName: item.roomName || item.chatName || 'General',
+            read: item.isRead || item.read || false,
+            platform: item.platform || 'websocket',
+            reasons: item.reasons || [],
+            suggestedAction: item.suggestedAction || 'Review message'
+          }));
           
-          if (newCriticalMessages.length > 0) {
-            showNotification(`${newCriticalMessages.length} new critical message(s)!`);
+          setInbox(transformedInbox);
+          
+          // Show notification for new high-priority messages if enabled
+          if (silent && settings.notifications) {
+            const newCriticalMessages = transformedInbox.filter(
+              (msg: PriorityMessage) => msg.priority >= settings.priorityThresholds.critical && !msg.read
+            );
+            
+            if (newCriticalMessages.length > 0) {
+              showNotification(`${newCriticalMessages.length} new critical message(s)!`);
+            }
           }
+          return;
         }
       }
+      
+      // If API fails or returns no data, load demo data
+      throw new Error('API failed or returned no data');
     } catch (error) {
       console.error('Failed to load priority inbox:', error);
       // Fallback to demo data if API fails
@@ -354,7 +361,7 @@ export default function PriorityInbox() {
   };
 
   const snoozeMessage = async (messageId: string, hours: number) => {
-    const snoozeUntil = new Date(Date.now() + hours * 60 * 60 * 1000);
+    const snoozedUntil = new Date(Date.now() + hours * 60 * 60 * 1000);
     setInbox(prev => prev.map(msg => 
       msg.id === messageId ? { ...msg, snoozedUntil } : msg
     ));
@@ -473,15 +480,26 @@ export default function PriorityInbox() {
   }, [filteredMessages, settings.groupByPriority, settings.priorityThresholds]);
 
   // Statistics
-  const stats = useMemo(() => ({
-    total: inbox.length,
-    unread: inbox.filter(m => !m.read).length,
-    critical: inbox.filter(m => m.priority >= settings.priorityThresholds.critical).length,
-    high: inbox.filter(m => m.priority >= settings.priorityThresholds.high && m.priority < settings.priorityThresholds.critical).length,
-    medium: inbox.filter(m => m.priority >= settings.priorityThresholds.medium && m.priority < settings.priorityThresholds.high).length,
-    archived: inbox.filter(m => m.archived).length,
-    snoozed: inbox.filter(m => m.snoozedUntil && m.snoozedUntil > new Date()).length
-  }), [inbox, settings.priorityThresholds]);
+  const stats = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    return {
+      total: inbox.length,
+      unread: inbox.filter(m => !m.read && !m.archived).length,
+      critical: inbox.filter(m => m.priority >= settings.priorityThresholds.critical && !m.archived).length,
+      high: inbox.filter(m => m.priority >= settings.priorityThresholds.high && m.priority < settings.priorityThresholds.critical && !m.archived).length,
+      medium: inbox.filter(m => m.priority >= settings.priorityThresholds.medium && m.priority < settings.priorityThresholds.high && !m.archived).length,
+      archived: inbox.filter(m => m.archived).length,
+      snoozed: inbox.filter(m => m.snoozedUntil && m.snoozedUntil > new Date()).length,
+      today: inbox.filter(m => {
+        const msgDate = new Date(m.timestamp);
+        return msgDate >= today && msgDate < tomorrow && !m.archived;
+      }).length
+    };
+  }, [inbox, settings.priorityThresholds]);
 
   return (
     <Layout>
@@ -865,11 +883,7 @@ export default function PriorityInbox() {
               <h3 style={{ fontSize: '14px', margin: 0, opacity: 0.9 }}>Today</h3>
             </div>
             <div style={{ fontSize: '32px', fontWeight: 'bold' }}>
-              {inbox.filter(m => {
-                const today = new Date();
-                const msgDate = new Date(m.timestamp);
-                return msgDate.toDateString() === today.toDateString();
-              }).length}
+              {stats.today}
             </div>
           </div>
         </div>
@@ -1118,9 +1132,18 @@ export default function PriorityInbox() {
             padding: '48px', 
             color: 'var(--text-secondary)' 
           }}>
+            <div style={{ 
+              width: '40px', 
+              height: '40px', 
+              border: '4px solid var(--border-light)',
+              borderTop: '4px solid var(--bubble-sent)',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+              margin: '0 auto 16px'
+            }} />
             Loading priority messages...
           </div>
-        ) : inbox.length === 0 ? (
+        ) : filteredMessages.length === 0 ? (
           <div style={{ 
             textAlign: 'center', 
             padding: '48px', 
@@ -1128,222 +1151,124 @@ export default function PriorityInbox() {
           }}>
             <MessageSquare size={48} style={{ margin: '0 auto 16px', opacity: 0.5 }} />
             <h3 style={{ fontSize: '18px', marginBottom: '8px' }}>No priority messages</h3>
-            <p>Your priority inbox is clean!</p>
+            <p>
+              {inbox.length === 0 
+                ? "Your priority inbox is clean!" 
+                : "No messages match your current filters."
+              }
+            </p>
+            {inbox.length === 0 && (
+              <button
+                onClick={() => loadPriorityInbox()}
+                style={{
+                  marginTop: '16px',
+                  padding: '12px 24px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'var(--bubble-sent)',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+              >
+                Load Demo Data
+              </button>
+            )}
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {inbox
-              .filter(msg => {
-                // Priority filter
-                if (msg.priority < filters.minPriority || msg.priority > filters.maxPriority) return false;
-                
-                // Read status filter
-                if (filters.unreadOnly && msg.read) return false;
-                
-                // Time filter
-                const daysDiff = (Date.now() - msg.timestamp.getTime()) / (1000 * 60 * 60 * 24);
-                if (daysDiff > filters.daysBack) return false;
-                
-                // Platform filter
-                if (filters.platforms.length > 0 && !filters.platforms.includes(msg.platform || 'websocket')) return false;
-                
-                // Sender filter
-                if (filters.senders.length > 0 && !filters.senders.includes(msg.sender)) return false;
-                
-                return true;
-              })
-              .sort((a, b) => {
-                switch (filters.sortBy) {
-                  case 'priority':
-                    return filters.sortOrder === 'desc' ? b.priority - a.priority : a.priority - b.priority;
-                  case 'timestamp':
-                    return filters.sortOrder === 'desc' 
-                      ? b.timestamp.getTime() - a.timestamp.getTime()
-                      : a.timestamp.getTime() - b.timestamp.getTime();
-                  case 'sender':
-                    return filters.sortOrder === 'desc' 
-                      ? b.sender.localeCompare(a.sender)
-                      : a.sender.localeCompare(b.sender);
-                  default:
-                    return b.priority - a.priority;
-                }
-              })
-              .map((message) => (
-                <div
-                  key={message.id}
-                  style={{
-                    background: 'var(--bg-primary)',
-                    borderRadius: '12px',
-                    padding: '16px',
-                    boxShadow: 'var(--shadow-sm)',
-                    border: message.read ? '1px solid var(--border-light)' : '2px solid var(--bubble-sent)',
-                    position: 'relative',
-                    opacity: message.read ? 0.8 : 1
-                  }}
-                >
-                  {!message.read && (
-                    <div style={{
-                      position: 'absolute',
-                      top: '8px',
-                      right: '8px',
-                      width: '8px',
-                      height: '8px',
-                      background: 'var(--bubble-sent)',
-                      borderRadius: '50%'
-                    }} />
-                  )}
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      <span style={{ 
-                        fontSize: '12px', 
-                        padding: '4px 8px',
-                        borderRadius: '12px',
-                        background: `rgba(${parseInt(getPriorityColor(message.priority).slice(1, 3), 16)}, ${parseInt(getPriorityColor(message.priority).slice(3, 5), 16)}, ${parseInt(getPriorityColor(message.priority).slice(5, 7), 16)}, 0.1)`,
-                        color: getPriorityColor(message.priority),
-                        fontWeight: '600'
-                      }}>
-                        {getPriorityLabel(message.priority)} ({message.priority})
-                      </span>
-                      <span style={{ 
-                        fontSize: '12px', 
-                        padding: '2px 6px',
-                        borderRadius: '8px',
-                        background: 'var(--bg-tertiary)',
-                        color: 'var(--text-secondary)' 
-                      }}>
-                        {message.roomName}
-                      </span>
-                      {message.platform && (
-                        <span style={{ 
-                          fontSize: '10px', 
-                          padding: '2px 4px',
-                          borderRadius: '4px',
-                          background: 'var(--border-light)',
-                          color: 'var(--text-tertiary)',
-                          textTransform: 'uppercase'
-                        }}>
-                          {message.platform}
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
-                        {new Date(message.timestamp).toLocaleString([], { 
-                          month: 'short', 
-                          day: 'numeric',
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
-                      </span>
-                      {!message.read && (
-                        <div style={{
-                          width: '6px',
-                          height: '6px',
-                          background: 'var(--bubble-sent)',
-                          borderRadius: '50%'
-                        }} />
-                      )}
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ 
-                        fontSize: '14px', 
-                        color: 'var(--text-primary)', 
-                        fontWeight: '500',
-                        marginBottom: '4px'
-                      }}>
-                        {message.senderName || message.sender}
-                      </div>
-                      <div style={{ 
-                        fontSize: '14px', 
-                        color: 'var(--text-secondary)',
-                        lineHeight: '1.5',
-                        marginBottom: '8px'
-                      }}>
-                        {message.content}
-                      </div>
-                      
-                      {/* Priority Reasons */}
-                      {message.reasons && message.reasons.length > 0 && (
-                        <div style={{ marginBottom: '8px' }}>
-                          <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
-                            Priority factors:
-                          </div>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                            {message.reasons.map((reason, idx) => (
-                              <span
-                                key={idx}
-                                style={{
-                                  fontSize: '11px',
-                                  padding: '2px 6px',
-                                  borderRadius: '8px',
-                                  background: 'rgba(59, 130, 246, 0.1)',
-                                  color: '#3b82f6',
-                                  border: '1px solid rgba(59, 130, 246, 0.2)'
-                                }}
-                              >
-                                {reason}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Suggested Action */}
-                      {message.suggestedAction && (
-                        <div style={{
-                          fontSize: '12px',
-                          color: '#10b981',
-                          background: 'rgba(16, 185, 129, 0.1)',
-                          padding: '6px 8px',
-                          borderRadius: '6px',
-                          border: '1px solid rgba(16, 185, 129, 0.2)',
-                          marginBottom: '8px'
-                        }}>
-                          💡 {message.suggestedAction}
-                        </div>
-                      )}
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button
-                        onClick={() => markAsRead(message.id)}
-                        style={{
-                          padding: '8px',
-                          border: '1px solid var(--border-medium)',
-                          borderRadius: '8px',
-                          background: 'var(--bg-primary)',
-                          cursor: 'pointer'
-                        }}
-                        title="Mark as read"
-                      >
-                        <CheckCircle size={16} color={message.read ? '#10b981' : 'var(--text-tertiary)'} />
-                      </button>
-                      
-                      <Link 
-                        to={`/messages?roomId=${message.roomId}`}
-                        style={{
-                          padding: '8px',
-                          border: '1px solid var(--border-medium)',
-                          borderRadius: '8px',
-                          background: 'var(--bubble-sent)',
-                          color: 'white',
-                          cursor: 'pointer',
-                          textDecoration: 'none',
-                          display: 'flex',
-                          alignItems: 'center'
-                        }}
-                        title="Go to conversation"
-                      >
-                        <ChevronRight size={16} />
-                      </Link>
-                    </div>
-                  </div>
+          <div>
+            {/* View Mode Controls */}
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              marginBottom: '16px',
+              padding: '0 4px'
+            }}>
+              <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
+                Showing {filteredMessages.length} of {inbox.length} messages
+              </div>
+              
+              {filteredMessages.length > 0 && (
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    onClick={selectedMessages.size === filteredMessages.length ? deselectAll : selectAll}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-medium)',
+                      background: 'var(--bg-primary)',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    {selectedMessages.size === filteredMessages.length ? 'Deselect All' : 'Select All'}
+                  </button>
                 </div>
-              ))}
+              )}
+            </div>
+
+            {/* Messages List */}
+            {viewMode === 'grouped' ? (
+              // Grouped View
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                {Object.entries(groupedMessages).map(([group, messages]) => {
+                  if (messages.length === 0) return null;
+                  
+                  const groupColors = {
+                    critical: '#ef4444',
+                    high: '#f59e0b', 
+                    medium: '#10b981',
+                    low: '#6b7280',
+                    all: 'var(--text-primary)'
+                  };
+                  
+                  return (
+                    <div key={group}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        marginBottom: '12px',
+                        padding: '8px 0',
+                        borderBottom: '2px solid var(--border-light)'
+                      }}>
+                        <div style={{
+                          width: '4px',
+                          height: '20px',
+                          background: groupColors[group as keyof typeof groupColors],
+                          borderRadius: '2px'
+                        }} />
+                        <h3 style={{
+                          fontSize: '16px',
+                          fontWeight: '600',
+                          color: 'var(--text-primary)',
+                          margin: 0,
+                          textTransform: 'capitalize'
+                        }}>
+                          {group === 'all' ? 'All Messages' : `${group} Priority`} ({messages.length})
+                        </h3>
+                      </div>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {messages.map((message) => renderMessage(message, viewMode))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              // List and Compact Views
+              <div style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: viewMode === 'compact' ? '8px' : '16px' 
+              }}>
+                {filteredMessages.map((message) => renderMessage(message, viewMode))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1357,4 +1282,212 @@ export default function PriorityInbox() {
       `}</style>
     </Layout>
   );
+
+  // Message rendering function
+  function renderMessage(message: PriorityMessage, mode: 'list' | 'compact' | 'grouped') {
+    const isCompact = mode === 'compact';
+    const isSelected = selectedMessages.has(message.id);
+    
+    return (
+      <div
+        key={message.id}
+        onClick={() => toggleSelectMessage(message.id)}
+        style={{
+          background: isSelected ? 'rgba(59, 130, 246, 0.1)' : 'var(--bg-primary)',
+          borderRadius: isCompact ? '8px' : '12px',
+          padding: isCompact ? '12px' : '16px',
+          boxShadow: isSelected ? '0 0 0 2px #3b82f6' : 'var(--shadow-sm)',
+          border: message.read ? '1px solid var(--border-light)' : '2px solid var(--bubble-sent)',
+          position: 'relative',
+          opacity: message.read ? 0.8 : 1,
+          cursor: 'pointer',
+          transition: 'all 0.2s ease'
+        }}
+      >
+        {!message.read && (
+          <div style={{
+            position: 'absolute',
+            top: '8px',
+            right: '8px',
+            width: '8px',
+            height: '8px',
+            background: 'var(--bubble-sent)',
+            borderRadius: '50%'
+          }} />
+        )}
+
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          marginBottom: isCompact ? '4px' : '8px',
+          alignItems: isCompact ? 'center' : 'flex-start'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ 
+              fontSize: isCompact ? '10px' : '12px', 
+              padding: isCompact ? '2px 6px' : '4px 8px',
+              borderRadius: '12px',
+              background: `rgba(${parseInt(getPriorityColor(message.priority).slice(1, 3), 16)}, ${parseInt(getPriorityColor(message.priority).slice(3, 5), 16)}, ${parseInt(getPriorityColor(message.priority).slice(5, 7), 16)}, 0.1)`,
+              color: getPriorityColor(message.priority),
+              fontWeight: '600'
+            }}>
+              {getPriorityLabel(message.priority)} {!isCompact && `(${message.priority})`}
+            </span>
+            <span style={{ 
+              fontSize: isCompact ? '10px' : '12px', 
+              padding: '2px 6px',
+              borderRadius: '8px',
+              background: 'var(--bg-tertiary)',
+              color: 'var(--text-secondary)' 
+            }}>
+              {message.roomName}
+            </span>
+            {!isCompact && message.platform && (
+              <span style={{ 
+                fontSize: '10px', 
+                padding: '2px 4px',
+                borderRadius: '4px',
+                background: 'var(--border-light)',
+                color: 'var(--text-tertiary)',
+                textTransform: 'uppercase'
+              }}>
+                {message.platform}
+              </span>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: isCompact ? '10px' : '12px', color: 'var(--text-tertiary)' }}>
+              {new Date(message.timestamp).toLocaleString([], { 
+                month: 'short', 
+                day: 'numeric',
+                hour: '2-digit', 
+                minute: '2-digit' 
+              })}
+            </span>
+            {!message.read && (
+              <div style={{
+                width: '6px',
+                height: '6px',
+                background: 'var(--bubble-sent)',
+                borderRadius: '50%'
+              }} />
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ 
+              fontSize: isCompact ? '12px' : '14px', 
+              color: 'var(--text-primary)', 
+              fontWeight: '500',
+              marginBottom: '4px'
+            }}>
+              {message.senderName || message.sender}
+            </div>
+            <div style={{ 
+              fontSize: isCompact ? '12px' : '14px', 
+              color: 'var(--text-secondary)',
+              lineHeight: '1.5',
+              marginBottom: isCompact ? '4px' : '8px',
+              display: '-webkit-box',
+              WebkitLineClamp: isCompact ? 2 : 3,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden'
+            }}>
+              {message.content}
+            </div>
+            
+            {/* Priority Reasons - only show in list view */}
+            {!isCompact && message.reasons && message.reasons.length > 0 && (
+              <div style={{ marginBottom: '8px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
+                  Priority factors:
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                  {message.reasons.slice(0, 3).map((reason, idx) => (
+                    <span
+                      key={idx}
+                      style={{
+                        fontSize: '11px',
+                        padding: '2px 6px',
+                        borderRadius: '8px',
+                        background: 'rgba(59, 130, 246, 0.1)',
+                        color: '#3b82f6',
+                        border: '1px solid rgba(59, 130, 246, 0.2)'
+                      }}
+                    >
+                      {reason}
+                    </span>
+                  ))}
+                  {message.reasons.length > 3 && (
+                    <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                      +{message.reasons.length - 3} more
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Suggested Action - only show in list view */}
+            {!isCompact && message.suggestedAction && (
+              <div style={{
+                fontSize: '12px',
+                color: '#10b981',
+                background: 'rgba(16, 185, 129, 0.1)',
+                padding: '6px 8px',
+                borderRadius: '6px',
+                border: '1px solid rgba(16, 185, 129, 0.2)',
+                marginBottom: '8px'
+              }}>
+                💡 {message.suggestedAction}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                message.read ? markAsUnread(message.id) : markAsRead(message.id);
+              }}
+              style={{
+                padding: isCompact ? '6px' : '8px',
+                border: '1px solid var(--border-medium)',
+                borderRadius: '8px',
+                background: 'var(--bg-primary)',
+                cursor: 'pointer'
+              }}
+              title={message.read ? "Mark as unread" : "Mark as read"}
+            >
+              {message.read ? (
+                <EyeOff size={isCompact ? 14 : 16} color="var(--text-tertiary)" />
+              ) : (
+                <CheckCircle size={isCompact ? 14 : 16} color="#10b981" />
+              )}
+            </button>
+            
+            <Link 
+              to={`/messages?roomId=${message.roomId}`}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                padding: isCompact ? '6px' : '8px',
+                border: '1px solid var(--border-medium)',
+                borderRadius: '8px',
+                background: 'var(--bubble-sent)',
+                color: 'white',
+                cursor: 'pointer',
+                textDecoration: 'none',
+                display: 'flex',
+                alignItems: 'center'
+              }}
+              title="Go to conversation"
+            >
+              <ChevronRight size={isCompact ? 14 : 16} />
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 }

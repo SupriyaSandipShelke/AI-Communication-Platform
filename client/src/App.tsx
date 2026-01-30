@@ -15,6 +15,13 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const handleLogout = () => {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('username');
+    localStorage.removeItem('user_id');
+    setIsAuthenticated(false);
+  };
+
   useEffect(() => {
     // Check for existing auth token
     const token = localStorage.getItem('auth_token');
@@ -35,15 +42,19 @@ function App() {
               localStorage.setItem('user_id', data.user.id);
             }
           } else {
+            // Clear invalid tokens
             localStorage.removeItem('auth_token');
             localStorage.removeItem('username');
             localStorage.removeItem('user_id');
+            setIsAuthenticated(false);
           }
         })
         .catch(() => {
+          // Clear tokens on error
           localStorage.removeItem('auth_token');
           localStorage.removeItem('username');
           localStorage.removeItem('user_id');
+          setIsAuthenticated(false);
         })
         .finally(() => {
           setLoading(false);
@@ -78,13 +89,7 @@ function App() {
           
           <Route
             path="/login"
-            element={
-              isAuthenticated ? (
-                <Navigate to="/dashboard" replace />
-              ) : (
-                <Login onLogin={() => setIsAuthenticated(true)} />
-              )
-            }
+            element={<Login onLogin={() => setIsAuthenticated(true)} onLogout={handleLogout} isAuthenticated={isAuthenticated} />}
           />
           
           {/* Protected Routes */}

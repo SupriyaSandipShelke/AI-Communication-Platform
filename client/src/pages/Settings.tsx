@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import Layout from '../components/Layout';
 import SecurityStatus from '../components/SecurityStatus';
-import { Save, Key, Bell, Shield, Zap } from 'lucide-react';
+import PlatformSelector from '../components/PlatformSelector';
+import { activityTracker } from '../services/ActivityTracker';
+import { Save, Key, Bell, Shield, Zap, Settings as SettingsIcon, Eye, EyeOff } from 'lucide-react';
 
 export default function Settings() {
   const [settings, setSettings] = useState({
@@ -10,6 +12,10 @@ export default function Settings() {
     matrixAccessToken: '',
     openaiApiKey: '',
     slackBotToken: '',
+    telegramBotToken: '',
+    instagramAccessToken: '',
+    instagramPageId: '',
+    instagramWebhookToken: '',
     enableAISummary: true,
     enableAutoResponse: false,
     enableVoiceAssistant: true,
@@ -17,14 +23,24 @@ export default function Settings() {
   });
 
   const [saved, setSaved] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState('whatsapp');
+  const [showPasswords, setShowPasswords] = useState<{[key: string]: boolean}>({});
 
   const handleChange = (field: string, value: any) => {
     setSettings(prev => ({ ...prev, [field]: value }));
   };
 
+  const togglePasswordVisibility = (field: string) => {
+    setShowPasswords(prev => ({ ...prev, [field]: !prev[field] }));
+  };
+
   const handleSave = async () => {
     // In a real app, this would save to backend
     console.log('Saving settings:', settings);
+    
+    // Track settings change activity
+    activityTracker.trackSettingsChanged(selectedPlatform, 'platform configuration');
+    
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
@@ -42,6 +58,216 @@ export default function Settings() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Platform Configuration */}
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '32px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+              <SettingsIcon size={24} color="#3b82f6" />
+              <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#1f2937' }}>
+                Platform Configuration
+              </h2>
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <PlatformSelector 
+                selectedPlatform={selectedPlatform}
+                onPlatformChange={setSelectedPlatform}
+                compact={true}
+                showTitle={false}
+              />
+            </div>
+
+            {/* Telegram Configuration */}
+            {selectedPlatform === 'telegram' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ padding: '16px', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#0369a1', marginBottom: '8px' }}>
+                    🤖 Telegram Bot Setup
+                  </h3>
+                  <ol style={{ fontSize: '13px', color: '#0c4a6e', paddingLeft: '16px' }}>
+                    <li>Message @BotFather on Telegram</li>
+                    <li>Use /newbot command to create a new bot</li>
+                    <li>Choose a name and username for your bot</li>
+                    <li>Copy the bot token and paste it below</li>
+                  </ol>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', color: '#374151', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
+                    Telegram Bot Token
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showPasswords.telegramBotToken ? 'text' : 'password'}
+                      value={settings.telegramBotToken}
+                      onChange={(e) => handleChange('telegramBotToken', e.target.value)}
+                      placeholder="1234567890:ABCdefGHIjklMNOpqrsTUVwxyz"
+                      style={{
+                        width: '100%',
+                        padding: '12px 40px 12px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => togglePasswordVisibility('telegramBotToken')}
+                      style={{
+                        position: 'absolute',
+                        right: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#6b7280'
+                      }}
+                    >
+                      {showPasswords.telegramBotToken ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Instagram Configuration */}
+            {selectedPlatform === 'instagram' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ padding: '16px', background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: '8px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#92400e', marginBottom: '8px' }}>
+                    📷 Instagram Business API Setup
+                  </h3>
+                  <ol style={{ fontSize: '13px', color: '#78350f', paddingLeft: '16px' }}>
+                    <li>Create a Facebook App at developers.facebook.com</li>
+                    <li>Add Instagram Basic Display or Messaging product</li>
+                    <li>Create an Instagram Business Account</li>
+                    <li>Generate a Page Access Token and get Page ID</li>
+                  </ol>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', color: '#374151', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
+                    Instagram Access Token
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showPasswords.instagramAccessToken ? 'text' : 'password'}
+                      value={settings.instagramAccessToken}
+                      onChange={(e) => handleChange('instagramAccessToken', e.target.value)}
+                      placeholder="EAABwzLixnjYBAO..."
+                      style={{
+                        width: '100%',
+                        padding: '12px 40px 12px 12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => togglePasswordVisibility('instagramAccessToken')}
+                      style={{
+                        position: 'absolute',
+                        right: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#6b7280'
+                      }}
+                    >
+                      {showPasswords.instagramAccessToken ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', color: '#374151', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
+                    Instagram Page ID
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.instagramPageId}
+                    onChange={(e) => handleChange('instagramPageId', e.target.value)}
+                    placeholder="1234567890123456"
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      fontSize: '14px'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', color: '#374151', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
+                    Webhook Verify Token
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.instagramWebhookToken}
+                    onChange={(e) => handleChange('instagramWebhookToken', e.target.value)}
+                    placeholder="your_custom_verify_token"
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      fontSize: '14px'
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* WhatsApp Configuration */}
+            {selectedPlatform === 'whatsapp' && (
+              <div style={{ padding: '16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#15803d', marginBottom: '8px' }}>
+                  📱 WhatsApp Integration
+                </h3>
+                <p style={{ fontSize: '13px', color: '#166534' }}>
+                  WhatsApp is currently configured and working in demo mode. For production use, you'll need to set up WhatsApp Business API credentials.
+                </p>
+              </div>
+            )}
+
+            {/* Matrix Configuration */}
+            {selectedPlatform === 'matrix' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ padding: '16px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#15803d', marginBottom: '8px' }}>
+                    🔗 Matrix Protocol
+                  </h3>
+                  <p style={{ fontSize: '13px', color: '#166534' }}>
+                    Matrix configuration is handled in the Matrix.org Configuration section above.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Slack Configuration */}
+            {selectedPlatform === 'slack' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ padding: '16px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px' }}>
+                  <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#475569', marginBottom: '8px' }}>
+                    💬 Slack Integration
+                  </h3>
+                  <p style={{ fontSize: '13px', color: '#64748b' }}>
+                    Slack configuration is handled in the Platform Integrations section below.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Matrix Configuration */}
           <div style={{
             background: 'white',

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Sparkles, Mic, MicOff, Volume2, VolumeX, Play, Pause } from 'lucide-react';
+import { Send, Bot, User, Sparkles, Mic, MicOff, Volume2, VolumeX, Play, Pause, Menu, X, Paperclip, FileText } from 'lucide-react';
 import '../styles/chatMessage.css';
 
 interface Message {
@@ -47,11 +47,14 @@ export default function AIChatbot({
   const [isListening, setIsListening] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<string>('');
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [showQuickActions, setShowQuickActions] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const recognitionRef = useRef<any>(null);
   const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Simple markdown-like formatting for AI responses
   const formatMessage = (content: string) => {
@@ -321,12 +324,12 @@ export default function AIChatbot({
   const handleSubmit = async (e: React.FormEvent | null, voiceText?: string) => {
     if (e) e.preventDefault();
     const messageText = voiceText || inputValue.trim();
-    if (!messageText || isLoading) return;
+    if ((!messageText && !attachedFile) || isLoading) return;
 
     const userMessage: Message = {
       id: `msg-${Date.now()}`,
       role: 'user',
-      content: messageText,
+      content: attachedFile ? `${messageText}\n\n📎 Attached: ${attachedFile.name}` : messageText,
       timestamp: new Date()
     };
 
@@ -345,6 +348,30 @@ export default function AIChatbot({
       // Simulate realistic response time (1-3 seconds)
       const responseDelay = Math.random() * 2000 + 1000;
       
+      // Prepare request body
+      let requestBody: any = {
+        message: messageText,
+        context: {
+          ...initialContext,
+          userId,
+          conversationId,
+          chatHistory: messages
+            .filter(m => m.id !== 'welcome')
+            .map(m => ({ role: m.role, content: m.content }))
+        }
+      };
+
+      // Handle file attachment
+      if (attachedFile) {
+        // For demo purposes, we'll simulate file analysis
+        // In a real implementation, you'd upload the file and get analysis
+        requestBody.fileAttachment = {
+          name: attachedFile.name,
+          type: attachedFile.type,
+          size: attachedFile.size
+        };
+      }
+      
       // Call the AI API
       const response = await fetch('/api/chat/conversation', {
         method: 'POST',
@@ -352,17 +379,7 @@ export default function AIChatbot({
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          message: messageText,
-          context: {
-            ...initialContext,
-            userId,
-            conversationId,
-            chatHistory: messages
-              .filter(m => m.id !== 'welcome')
-              .map(m => ({ role: m.role, content: m.content }))
-          }
-        })
+        body: JSON.stringify(requestBody)
       });
 
       const data = await response.json();
@@ -394,10 +411,17 @@ export default function AIChatbot({
           onMessageSubmit(messageText);
         }
       } else {
+        // Fallback response for file analysis when API is not available
+        let fallbackResponse = data.error || 'Sorry, I encountered an error. Please try again.';
+        
+        if (attachedFile) {
+          fallbackResponse = `I can see you've attached "${attachedFile.name}" (${(attachedFile.size / 1024).toFixed(1)}KB). While I can't analyze files directly in this demo, I can help you with:\n\n• **Document Questions**: Ask me about document structure, formatting, or content organization\n• **Data Analysis**: Help interpret data patterns or suggest analysis approaches\n• **File Management**: Provide tips for organizing and managing your files\n• **Content Strategy**: Suggest ways to use your content effectively\n\nWhat would you like to know about your file or how to work with it?`;
+        }
+        
         const errorMessage: Message = {
           id: `error-${Date.now()}`,
           role: 'assistant',
-          content: data.error || 'Sorry, I encountered an error. Please try again.',
+          content: fallbackResponse,
           timestamp: new Date()
         };
         setMessages(prev => [...prev, errorMessage]);
@@ -406,15 +430,26 @@ export default function AIChatbot({
       console.error('Error chatting with AI:', error);
       setIsTyping(false);
       
+      let errorResponse = 'Sorry, I\'m having trouble connecting. Please try again in a moment.';
+      
+      // Provide helpful response for file attachments even when API fails
+      if (attachedFile) {
+        errorResponse = `I can see you've attached "${attachedFile.name}". While I'm having connection issues, here are some things I can help you with once we're connected:\n\n• **File Analysis**: Understanding document content and structure\n• **Data Insights**: Extracting key information from your files\n• **Content Suggestions**: How to use your content effectively\n• **Organization Tips**: Managing and categorizing your files\n\nPlease try again in a moment, and I'll be happy to help analyze your file!`;
+      }
+      
       const errorMessage: Message = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: 'Sorry, I\'m having trouble connecting. Please try again in a moment.',
+        content: errorResponse,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
+      // Clear attached file after sending
+      if (attachedFile) {
+        removeAttachedFile();
+      }
     }
   };
 
@@ -426,6 +461,53 @@ export default function AIChatbot({
     { label: "📈 Communication stats", prompt: "Show me my communication statistics and patterns" },
     { label: "🔍 Search messages", prompt: "Help me find specific messages or conversations" }
   ];
+
+  const handleQuickAction = (prompt: string) => {
+    setInputValue(prompt);
+    setShowQuickActions(false);
+  };
+
+  const handleFileAttach = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Check file size (limit to 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        alert('File size must be less than 10MB');
+        return;
+      }
+      
+      // Check file type (allow common document and image types)
+      const allowedTypes = [
+        'text/plain',
+        'text/csv',
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+        'application/json'
+      ];
+      
+      if (!allowedTypes.includes(file.type)) {
+        alert('Unsupported file type. Please use PDF, Word, Excel, text files, or images.');
+        return;
+      }
+      
+      setAttachedFile(file);
+      setInputValue(inputValue || `Analyze this file: ${file.name}`);
+    }
+  };
+
+  const removeAttachedFile = () => {
+    setAttachedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   return (
     <div style={{
@@ -469,6 +551,87 @@ export default function AIChatbot({
         
         {/* Voice Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Quick Actions Menu Button */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowQuickActions(!showQuickActions)}
+              style={{
+                width: '28px',
+                height: '28px',
+                borderRadius: '6px',
+                border: 'none',
+                background: showQuickActions ? 'var(--bubble-sent)' : 'var(--bg-secondary)',
+                color: showQuickActions ? 'white' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s ease'
+              }}
+              title="Quick Actions Menu"
+            >
+              {showQuickActions ? <X size={12} /> : <Menu size={12} />}
+            </button>
+            
+            {/* Quick Actions Dropdown */}
+            {showQuickActions && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: '8px',
+                background: 'var(--bg-primary)',
+                border: '1px solid var(--border-medium)',
+                borderRadius: '12px',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                minWidth: '280px',
+                zIndex: 1000,
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  padding: '12px 16px',
+                  borderBottom: '1px solid var(--border-light)',
+                  background: 'var(--bg-secondary)',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  color: 'var(--text-secondary)',
+                  textAlign: 'center'
+                }}>
+                  ⚡ Quick Actions
+                </div>
+                
+                <div style={{ padding: '8px' }}>
+                  {quickActions.map((action, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleQuickAction(action.prompt)}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: 'var(--text-primary)',
+                        cursor: 'pointer',
+                        borderRadius: '8px',
+                        textAlign: 'left',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        transition: 'background 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      {action.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          
           {/* Emergency Stop Button - Always visible when speaking */}
           {isSpeaking && (
             <button
@@ -765,37 +928,60 @@ export default function AIChatbot({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Quick Actions */}
-      <div style={{
-        padding: '12px 16px',
-        borderTop: '1px solid var(--border-medium)',
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '8px',
-        backgroundColor: 'var(--bg-secondary)'
-      }}>
-        {quickActions.map((action, index) => (
-          <button
-            key={index}
-            onClick={() => setInputValue(action.prompt)}
-            style={{
-              padding: '6px 12px',
-              fontSize: '12px',
-              border: '1px solid var(--border-light)',
-              borderRadius: '16px',
-              background: 'var(--bg-primary)',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            {action.label}
-          </button>
-        ))}
-      </div>
-
       {/* Input */}
       <form onSubmit={handleSubmit} style={{ padding: '16px' }}>
+        {/* File Attachment Preview */}
+        {attachedFile && (
+          <div style={{
+            marginBottom: '12px',
+            padding: '12px',
+            background: 'var(--bg-secondary)',
+            borderRadius: '8px',
+            border: '1px solid var(--border-light)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
+          }}>
+            <div style={{
+              padding: '8px',
+              borderRadius: '6px',
+              background: 'var(--bubble-sent)',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <FileText size={16} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text-primary)' }}>
+                {attachedFile.name}
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                {(attachedFile.size / 1024).toFixed(1)} KB • {attachedFile.type}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={removeAttachedFile}
+              style={{
+                padding: '4px',
+                borderRadius: '4px',
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title="Remove file"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
+        
         <div style={{
           display: 'flex',
           gap: '8px'
@@ -804,7 +990,13 @@ export default function AIChatbot({
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder={isRecording ? "🎤 Listening... Speak now!" : "Ask me about your messages, priorities, or decisions..."}
+            placeholder={
+              attachedFile 
+                ? `Ask me about ${attachedFile.name}...`
+                : isRecording 
+                  ? "🎤 Listening... Speak now!" 
+                  : "Ask me about your messages, priorities, or attach a file..."
+            }
             style={{
               flex: 1,
               padding: '12px 16px',
@@ -816,6 +1008,39 @@ export default function AIChatbot({
               outline: 'none'
             }}
             disabled={isLoading || isRecording}
+          />
+          
+          {/* File Attachment Button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading || isRecording}
+            style={{
+              width: '44px',
+              height: '44px',
+              borderRadius: '50%',
+              border: 'none',
+              background: attachedFile ? 'var(--bubble-sent)' : 'var(--bg-secondary)',
+              color: attachedFile ? 'white' : 'var(--text-secondary)',
+              cursor: (isLoading || isRecording) ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              transition: 'all 0.2s ease'
+            }}
+            title="Attach file (PDF, Word, Excel, Images, Text)"
+          >
+            <Paperclip size={18} />
+          </button>
+          
+          {/* Hidden File Input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            style={{ display: 'none' }}
+            onChange={handleFileAttach}
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv,.json,.jpg,.jpeg,.png,.gif,.webp"
           />
           
           {/* Voice Input Button */}
@@ -848,7 +1073,7 @@ export default function AIChatbot({
           {/* Send Button */}
           <button
             type="submit"
-            disabled={!inputValue.trim() || isLoading || isRecording}
+            disabled={(!inputValue.trim() && !attachedFile) || isLoading || isRecording}
             style={{
               width: '44px',
               height: '44px',
@@ -856,7 +1081,7 @@ export default function AIChatbot({
               border: 'none',
               background: 'var(--bubble-sent)',
               color: 'white',
-              cursor: (!inputValue.trim() || isLoading || isRecording) ? 'not-allowed' : 'pointer',
+              cursor: ((!inputValue.trim() && !attachedFile) || isLoading || isRecording) ? 'not-allowed' : 'pointer',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
